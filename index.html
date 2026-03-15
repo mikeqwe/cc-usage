@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Usage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',system-ui,sans-serif;background:#0b0b0f;color:#b0b0be;min-height:100vh;-webkit-font-smoothing:antialiased}
+*::-webkit-scrollbar{width:6px;height:6px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:#2a2a38;border-radius:3px}
+*::-webkit-scrollbar-thumb:hover{background:#3a3a48}
+
+.page{max-width:1080px;margin:0 auto;padding:48px 32px 64px}
+#loading{display:flex;align-items:center;justify-content:center;height:100vh;color:#4a4a58;font-size:.85rem}
+
+/* ── Header ─────────────────────────── */
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:48px}
+.title{font-size:1.1rem;font-weight:500;color:#dcdce4;letter-spacing:-.01em}
+.header-right{display:flex;align-items:center;gap:16px}
+.date-range{font-size:.78rem;color:#4a4a58;font-weight:400;min-width:180px;text-align:right}
+.update-btn{font-family:'Outfit',sans-serif;font-size:.7rem;font-weight:400;color:#4a4a58;background:none;border:1px solid #1e1e2a;padding:4px 12px;border-radius:6px;cursor:pointer;transition:all .15s}
+.update-btn:hover{color:#8080a0;border-color:#2a2a38}
+.update-btn:disabled{opacity:.4;cursor:wait}
+.tf-nav{display:flex;align-items:center;gap:4px}
+.tf-arrow{background:none;border:none;color:#4a4a58;font-size:.85rem;cursor:pointer;padding:4px 8px;border-radius:4px;font-family:'Outfit',sans-serif;transition:all .12s;line-height:1}
+.tf-arrow:hover:not(:disabled){color:#8080a0;background:#1e1e2a}
+.tf-arrow:disabled{opacity:.15;cursor:default}
+
+/* ── Stats ──────────────────────────── */
+.stats{display:flex;gap:40px;margin-bottom:48px;padding-bottom:40px;border-bottom:1px solid #1a1a24}
+.stat-label{font-size:.65rem;color:#4a4a58;text-transform:uppercase;letter-spacing:.1em;font-weight:500;margin-bottom:6px}
+.stat-value{font-family:'JetBrains Mono',monospace;font-size:1.8rem;font-weight:500;color:#dcdce4;letter-spacing:-.02em;line-height:1}
+.stat-sub{font-size:.72rem;color:#4a4a58;margin-top:6px;font-weight:400}
+.stat-sub .up{color:#6ee7b7}
+.stat-sub .down{color:#fbbf24}
+
+/* ── Controls ───────────────────────── */
+.controls-area{margin-bottom:24px}
+.controls{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.controls-left{display:flex;gap:12px;align-items:center}
+.tab-row{display:flex;gap:2px}
+.tab{padding:5px 14px;border:none;border-radius:6px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:.72rem;font-weight:500;background:transparent;color:#4a4a58;transition:all .15s}
+.tab.active{background:#1e1e2a;color:#dcdce4}
+.tab:hover:not(.active):not(:disabled){color:#8080a0}
+.tab:disabled{opacity:.25;cursor:not-allowed}
+.controls-right{display:flex;gap:16px;align-items:center}
+.sep{width:1px;height:16px;background:#1e1e2a}
+
+/* ── Filter dropdown ────────────────── */
+.filter-dd{position:relative}
+.filter-trigger{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;border:1px solid #1e1e2a;background:transparent;color:#6b6b7b;font-family:'Outfit',sans-serif;font-size:.72rem;cursor:pointer;transition:all .15s;white-space:nowrap}
+.filter-trigger:hover{color:#9090a0;border-color:#2a2a38}
+.filter-trigger .dd-arrow{font-size:.55rem;margin-left:2px;transition:transform .15s}
+.filter-trigger.open .dd-arrow{transform:rotate(180deg)}
+.filter-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:100;background:#16161e;border:1px solid #2a2a38;border-radius:8px;padding:6px 0;min-width:300px;max-height:380px;display:none;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.filter-panel.open{display:block}
+.filter-actions{display:flex;gap:8px;padding:6px 12px 8px;border-bottom:1px solid #1a1a24;margin-bottom:2px}
+.filter-act{font-size:.65rem;color:#4a4a58;cursor:pointer;background:none;border:none;padding:2px 4px;font-family:'Outfit',sans-serif;transition:color .12s}
+.filter-act:hover{color:#9090a0}
+.filter-scroll{max-height:300px;overflow-y:auto}
+.filter-item{display:flex;align-items:center;gap:6px;padding:4px 12px;cursor:pointer;font-size:.72rem;color:#4a4a58;transition:background .1s}
+.filter-item:hover{background:#1a1a24}
+.filter-item.on{color:#b0b0be}
+.filter-check{flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:2px 6px 2px 0}
+.filter-check-box{width:12px;height:12px;border:1.5px solid #2a2a38;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.5rem;transition:all .12s}
+.filter-item.on .filter-check-box{background:#6bc4a318;border-color:#6bc4a360;color:#6bc4a3}
+.filter-item.on .filter-check-box{background:#6bc4a318;border-color:#6bc4a360;color:#6bc4a3}
+.proj-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.filter-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filter-cost{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:#3a3a48;flex-shrink:0}
+
+/* ── Chart ──────────────────────────── */
+.chart-area{margin-bottom:40px}
+.chart-wrap{position:relative;height:300px}
+
+/* ── Model legend ──────────────────── */
+.model-legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.mleg{display:flex;align-items:center;gap:4px;font-size:.68rem;color:#4a4a58;cursor:pointer;transition:opacity .15s;user-select:none}
+.mleg.off{opacity:.2;text-decoration:line-through}
+.mleg:hover{color:#8080a0}
+.mleg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* ── Bottom ─────────────────────────── */
+.bottom-2col{display:grid;grid-template-columns:1fr 1fr;gap:56px;margin-bottom:48px}
+
+/* ── Stat tooltip ──────────────────── */
+.stat-hover{position:relative;cursor:default}
+.stat-tip{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);z-index:50;background:#16161e;border:1px solid #2a2a38;border-radius:8px;padding:10px 14px;min-width:220px;max-height:320px;overflow-y:auto;display:none;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.stat-hover::after{content:'';position:absolute;left:-8px;right:-8px;top:100%;height:10px}
+.stat-hover:hover .stat-tip{display:block}
+.tip-row{display:flex;justify-content:space-between;padding:3px 0;font-size:.7rem}
+.tip-label{color:#6b6b7b}
+.tip-val{font-family:'JetBrains Mono',monospace;font-size:.66rem;color:#b0b0be}
+.tip-sep{border-top:1px solid #1a1a24;margin:6px 0}
+.section-label{font-size:.6rem;color:#3a3a48;text-transform:uppercase;letter-spacing:.1em;font-weight:500;margin-bottom:16px}
+
+/* ── Calendar ───────────────────────── */
+.cal-area{overflow-x:auto}
+.cal-cell{width:14px;height:14px;border-radius:2px;cursor:pointer;transition:opacity .12s}
+.cal-cell:hover{opacity:.7}
+#cal-tip{position:fixed;z-index:200;background:#16161e;border:1px solid #2a2a38;border-radius:6px;padding:4px 8px;font-size:.65rem;color:#b0b0be;white-space:nowrap;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.4);font-family:'JetBrains Mono',monospace;display:none}
+.cal-legend{display:flex;align-items:center;gap:4px;margin-top:10px;font-size:.6rem;color:#3a3a48}
+
+/* ── Breakdown ──────────────────────── */
+.bk-item{margin-bottom:10px}
+.bk-top{display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:4px}
+.bk-name{color:#8080a0;font-weight:400;display:flex;align-items:center;gap:6px}
+.bk-val{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:#4a4a58;font-weight:400}
+.bk-track{height:3px;background:#16161e;border-radius:2px;overflow:hidden}
+.bk-fill{height:100%;border-radius:2px}
+
+/* ── Table ──────────────────────────── */
+.table-section{border-top:1px solid #1a1a24;padding-top:24px}
+.table-toggle{font-size:.68rem;color:#4a4a58;cursor:pointer;background:none;border:none;font-family:'Outfit',sans-serif;font-weight:400;padding:0}
+.table-toggle:hover{color:#9090a0}
+.table-wrap{max-height:0;overflow:hidden;transition:max-height .3s}
+.table-wrap.open{max-height:400px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:.72rem;margin-top:12px}
+th{text-align:left;padding:6px 8px;color:#3a3a48;font-weight:500;font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #1a1a24;position:sticky;top:0;background:#0b0b0f}
+td{padding:5px 8px;border-bottom:1px solid #111118;color:#6b6b7b}
+tr:hover td{background:#10101a}
+.num{text-align:right;font-family:'JetBrains Mono',monospace;font-size:.68rem}
+.cost-td{text-align:right;font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:500;color:#6ee7b7}
+.tr-total td{background:#0e0e16!important;font-weight:600;border-top:1px solid #2a2a38;color:#dcdce4}
+
+.footer{text-align:center;font-size:.65rem;color:#2a2a38;margin-top:48px;padding-top:24px;border-top:1px solid #1a1a24}
+
+@media(max-width:768px){
+  .page{padding:24px 16px 40px}
+  .stats{gap:32px;flex-wrap:wrap}
+  .bottom-2col{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div id="loading">Loading…</div>
+<div id="cal-tip"></div>
+
+<div class="page" id="content" style="display:none">
+
+<div class="header">
+  <div class="title">Claude Code Usage</div>
+  <div class="header-right">
+    <button class="update-btn" id="update-btn" onclick="refreshData()">↻ Update</button>
+    <div class="tf-nav">
+      <button class="tf-arrow" id="tf-prev" onclick="tfPrev()" style="display:none">◂</button>
+      <div class="date-range" id="date-range"></div>
+      <button class="tf-arrow" id="tf-next" onclick="tfNext()" style="display:none">▸</button>
+    </div>
+  </div>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="controls-area">
+  <div class="controls">
+    <div class="controls-left">
+      <div class="tab-row" id="metric-tabs"></div>
+      <div class="filter-dd" id="filter-dd">
+        <button class="filter-trigger" id="filter-trigger" onclick="toggleFilter()">
+          <span id="filter-label">All projects</span>
+          <span class="dd-arrow">▾</span>
+        </button>
+        <div class="filter-panel" id="filter-panel">
+          <div class="filter-actions">
+            <button class="filter-act" onclick="event.stopPropagation();selAll()">all</button>
+            <button class="filter-act" onclick="event.stopPropagation();selTop()">top 5</button>
+          </div>
+          <div class="filter-scroll" id="filter-list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="controls-right">
+      <div class="tab-row" id="tf-tabs"></div>
+      <div class="sep"></div>
+      <div class="tab-row" id="gran-tabs"></div>
+      <div class="sep"></div>
+      <div class="tab-row" id="stack-tabs"></div>
+    </div>
+  </div>
+</div>
+
+<div class="chart-area">
+  <div id="model-legend" class="model-legend"></div>
+  <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+</div>
+
+<div class="bottom-2col">
+  <div>
+    <div class="section-label">Activity</div>
+    <div class="cal-area" id="cal-area"></div>
+  </div>
+  <div>
+    <div class="section-label">Projects</div>
+    <div id="proj-breakdown"></div>
+  </div>
+</div>
+
+<div class="table-section">
+  <button class="table-toggle" onclick="toggleTable(this)">Hide table</button>
+  <div class="table-wrap open" id="table-wrap">
+    <table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table>
+  </div>
+</div>
+
+<div class="footer">All data is processed locally from ~/.claude/projects · MIT License · v0.1.1<br>Made by mikeqwe &amp; claude in a couple of hours</div>
+
+</div>
+
+<script>
+/* ── Constants ──────────────────────────────────────── */
+const PROJ_COLORS = ['#c4956b','#6ba3c4','#9b6bc4','#6bc4a3','#c46b8a','#8ac46b','#c4a36b','#6b8ac4','#c46bba','#6bc4c4','#a3c46b','#c48a6b','#6bc46b','#ba6bc4'];
+const MODEL_COLORS = {'opus-4-6':'#818cf8','opus-4-5':'#a5b4fc','sonnet-4-6':'#6ba3c4','sonnet-4-5':'#93c5fd','haiku-4-5':'#6bc4a3','haiku-3-5':'#86efac'};
+const CAL_SHADES = ['#161b22','#0e4429','#006d32','#26a641','#39d353'];
+const ALL_MODELS = ['opus-4-6','opus-4-5','sonnet-4-6','sonnet-4-5','haiku-4-5','haiku-3-5'];
+const TF_OPTIONS = [['1d','1d'],['7d','7d'],['30d','30d'],['90d','90d'],['all','All']];
+const TOOL_COLORS = {'Read':'#6ba3c4','Edit':'#6ee7b7','Write':'#6bc4a3','Bash':'#c4956b','Grep':'#9b6bc4','Glob':'#c46bba','Agent':'#818cf8','Skill':'#c46b8a','WebSearch':'#fbbf24','WebFetch':'#e5a820','Bash':'#c4956b','SendMessage':'#93c5fd'};
+const STORAGE_KEY = 'cc_usage_filter';
+
+/* ── State ──────────────────────────────────────────── */
+let D_raw = null, D = null;
+let timeframe = 'all', tfOffset = 0;
+let gran = 'day', metric = 'cost', stackBy = 'project';
+let allProjectsFull = [];  // from D_raw — stable, for dropdown
+let allProjects = [];      // from filtered D — for charts
+let projColor = {};
+let selProjects = new Set();
+let hiddenSeries = new Set();
+
+/* ── Helpers ─────────────────────────────────────────── */
+function toLD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function fmtN(n){if(n>=1e9)return(n/1e9).toFixed(1)+'B';if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(n>=10e3?0:1)+'K';return n.toFixed(0)}
+function fmtC(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function fmtV(v){return metric==='cost'?fmtC(v):fmtN(v)}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function weekStart(day){const d=new Date(day+'T12:00:00');const dow=d.getDay();d.setDate(d.getDate()+(dow===0?-6:1-dow));return toLD(d)}
+function getPeriodKey(day){return gran==='day'?day:gran==='month'?day.slice(0,7):weekStart(day)}
+
+/* ── Timeframe ──────────────────────────────────────── */
+function getTfRange(){
+  if(timeframe==='all') return null;
+  const days={'1d':1,'7d':7,'30d':30,'90d':90}[timeframe];
+  const end=new Date(); end.setHours(0,0,0,0);
+  end.setDate(end.getDate()+tfOffset*(timeframe==='1d'?1:days));
+  const start=new Date(end); start.setDate(start.getDate()-days+1);
+  return {startStr:toLD(start),endStr:toLD(end),start,end};
+}
+
+function applyTimeframe(){
+  if(!D_raw) return;
+  const all={costs:D_raw.costs,sessions:D_raw.sessions,tools:D_raw.tools,tool_names:D_raw.tool_names||{},compacts:D_raw.compacts,peak_session:D_raw.peak_session||{}};
+  if(timeframe==='all'){D=all;return;}
+  const r=getTfRange();
+  const f=d=>d>=r.startStr&&d<=r.endStr;
+  const flt=obj=>Object.fromEntries(Object.entries(obj).filter(([d])=>f(d)));
+  D={costs:flt(all.costs),sessions:flt(all.sessions),tools:flt(all.tools),tool_names:flt(all.tool_names),compacts:flt(all.compacts),peak_session:flt(all.peak_session)};
+}
+
+function initProjectsFull(){
+  const c={};
+  for(const projs of Object.values(D_raw.costs))
+    for(const [p,mods] of Object.entries(projs))
+      for(const v of Object.values(mods)) c[p]=(c[p]||0)+v.cost;
+  allProjectsFull=Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([p])=>p);
+  projColor=Object.fromEntries(allProjectsFull.map((p,i)=>[p,PROJ_COLORS[i%PROJ_COLORS.length]]));
+}
+
+function recomputeProjects(){
+  const c={};
+  for(const projs of Object.values(D.costs))
+    for(const [p,mods] of Object.entries(projs))
+      for(const v of Object.values(mods)) c[p]=(c[p]||0)+v.cost;
+  allProjects=Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([p])=>p);
+}
+
+/* ── Persistence ─────────────────────────────────────── */
+function saveFilter(){localStorage.setItem(STORAGE_KEY,JSON.stringify([...selProjects]))}
+function loadFilter(){
+  try{const s=localStorage.getItem(STORAGE_KEY);if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length)return new Set(a)}}catch(e){}
+  return null;
+}
+
+/* ── Data loading ───────────────────────────────────── */
+async function loadData(){
+  document.getElementById('loading').style.display='flex';
+  try{
+    const res=await fetch('/api/data');
+    D_raw=await res.json();
+    initProjectsFull();
+    const saved=loadFilter();
+    selProjects=saved?new Set([...saved].filter(p=>allProjectsFull.includes(p))):new Set(allProjectsFull);
+    if(selProjects.size===0) selProjects=new Set(allProjectsFull);
+    applyTimeframe(); recomputeProjects();
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='';
+    buildDateRange(); buildFilterDropdown(); render();
+  }catch(e){
+    document.getElementById('loading').textContent='Failed to load data';
+    console.error(e);
+  }
+}
+
+async function refreshData(){
+  const btn=document.getElementById('update-btn');
+  btn.disabled=true; btn.textContent='↻ …';
+  try{
+    const res=await fetch('/api/refresh');
+    D_raw=await res.json();
+    initProjectsFull();
+    applyTimeframe(); recomputeProjects();
+    buildDateRange(); buildFilterDropdown(); render();
+  }catch(e){console.error(e)}
+  btn.disabled=false; btn.textContent='↻ Update';
+}
+
+function setTimeframe(tf){
+  timeframe=tf;tfOffset=0;
+  const ag=allowedGrans();if(!ag.includes(gran))gran=ag[0]||'day';
+  if(metric==='output')metric='cost';
+  if(metric==='sessions'&&!ag.includes('day')&&ag.includes('hour'))metric='cost';
+  applyTimeframe();recomputeProjects();buildDateRange();render();
+}
+function tfPrev(){
+  const allDays=Object.keys(D_raw.costs).sort();
+  if(!allDays.length) return;
+  tfOffset--;
+  const r=getTfRange();
+  if(r&&r.endStr<allDays[0]){tfOffset++;return;}
+  applyTimeframe();recomputeProjects();buildDateRange();render();
+}
+function tfNext(){if(tfOffset>=0)return;tfOffset++;applyTimeframe();recomputeProjects();buildDateRange();render()}
+
+/* ── Aggregation ─────────────────────────────────────── */
+function aggCosts(){
+  const map={};
+  for(const [day,projs] of Object.entries(D.costs)){
+    const k=getPeriodKey(day);
+    for(const [p,mods] of Object.entries(projs)){
+      if(!selProjects.has(p)) continue;
+      if(!map[k]) map[k]={};if(!map[k][p]) map[k][p]={};
+      for(const [m,v] of Object.entries(mods)){
+        if(!map[k][p][m]) map[k][p][m]={cost:0,output:0,input:0,cache_read:0,cache_write:0};
+        const t=map[k][p][m];t.cost+=v.cost;t.output+=v.output;t.input+=v.input;t.cache_read+=v.cache_read;t.cache_write+=v.cache_write;
+      }
+    }
+  }
+  return map;
+}
+function aggSessions(){const map={};for(const [day,projs] of Object.entries(D.sessions)){const k=getPeriodKey(day);for(const [p,v] of Object.entries(projs)){if(!selProjects.has(p))continue;if(!map[k])map[k]={};map[k][p]=(map[k][p]||0)+v}}return map}
+function aggTools(){const map={};for(const [day,projs] of Object.entries(D.tools)){const k=getPeriodKey(day);for(const [p,v] of Object.entries(projs)){if(!selProjects.has(p))continue;if(!map[k])map[k]={};map[k][p]=(map[k][p]||0)+v}}return map}
+function aggCompacts(){const map={};for(const [day,projs] of Object.entries(D.compacts)){const k=getPeriodKey(day);for(const [p,v] of Object.entries(projs))if(selProjects.has(p))map[k]=(map[k]||0)+v}return map}
+
+function aggToolNames(){
+  // period -> toolName -> count
+  const map={};
+  for(const [day,projs] of Object.entries(D.tool_names||{})){
+    const k=getPeriodKey(day);
+    for(const [p,names] of Object.entries(projs)){
+      if(!selProjects.has(p))continue;
+      if(!map[k])map[k]={};
+      for(const [n,c] of Object.entries(names)) map[k][n]=(map[k][n]||0)+c;
+    }
+  }
+  return map;
+}
+
+function getTopToolNames(){
+  const tc={};
+  for(const projs of Object.values(D.tool_names||{}))
+    for(const [p,names] of Object.entries(projs)){
+      if(!selProjects.has(p))continue;
+      for(const [n,c] of Object.entries(names)) tc[n]=(tc[n]||0)+c;
+    }
+  return Object.entries(tc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([n])=>n);
+}
+
+function metricVal(period,proj,ca,sa,ta){
+  if(metric==='cost'){const pm=ca[period]?.[proj];if(!pm)return 0;return Object.values(pm).reduce((s,v)=>s+v.cost,0)}
+  if(metric==='sessions')return sa[period]?.[proj]||0;
+  if(metric==='tools')return ta[period]?.[proj]||0;
+  if(metric==='output'){const pm=ca[period]?.[proj];if(!pm)return 0;return Object.values(pm).reduce((s,v)=>s+v.output,0)}
+  return 0;
+}
+function modelMetricVal(period,model,ca){
+  if(metric==='sessions'||metric==='tools')return 0;
+  let sum=0;for(const projs of Object.values(ca[period]||{})){const v=projs[model];if(v)sum+=metric==='cost'?v.cost:v.output}return sum;
+}
+
+/* ── Date range (with nav arrows) ────────────────────── */
+function buildDateRange(){
+  const prevBtn=document.getElementById('tf-prev'),nextBtn=document.getElementById('tf-next');
+  if(timeframe==='all'){
+    prevBtn.style.display='none'; nextBtn.style.display='none';
+    const days=Object.keys(D.costs).sort();
+    if(!days.length){document.getElementById('date-range').textContent='No data';return}
+    const fmt=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    document.getElementById('date-range').textContent=fmt(days[0])+' — '+fmt(days[days.length-1]);
+  }else{
+    prevBtn.style.display=''; nextBtn.style.display='';
+    nextBtn.disabled=tfOffset>=0;
+    const r=getTfRange();
+    const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    document.getElementById('date-range').textContent=fmt(r.start)+' — '+fmt(r.end);
+  }
+}
+
+/* ── Stats ────────────────────────────────────────────── */
+function buildStats(){
+  const t={cost:0,sessions:0,tools:0,output:0,input:0,cache_read:0,cache_write:0,compacts:0,days:new Set()};
+  for(const [day,projs] of Object.entries(D.costs)){
+    let has=false;
+    for(const [p,mods] of Object.entries(projs)){if(!selProjects.has(p))continue;has=true;
+      for(const v of Object.values(mods)){t.cost+=v.cost;t.output+=v.output;t.input+=v.input;t.cache_read+=v.cache_read;t.cache_write+=v.cache_write}}
+    if(has)t.days.add(day);
+  }
+  for(const projs of Object.values(D.sessions))for(const [p,v] of Object.entries(projs))if(selProjects.has(p))t.sessions+=v;
+  for(const projs of Object.values(D.tools))for(const [p,v] of Object.entries(projs))if(selProjects.has(p))t.tools+=v;
+  for(const projs of Object.values(D.compacts))for(const [p,v] of Object.entries(projs))if(selProjects.has(p))t.compacts+=v;
+
+  // Peak session cost (actual per-session max from server data)
+  let peakSess=0;
+  for(const [day,projs] of Object.entries(D.peak_session||{}))
+    for(const [p,cost] of Object.entries(projs))
+      if(selProjects.has(p)) peakSess=Math.max(peakSess,cost);
+
+  const cacheHit=t.cache_read+t.input>0?(t.cache_read/(t.cache_read+t.input)*100).toFixed(1):'0';
+  const nd=t.days.size||1;
+
+  const tokensNonCache=t.input+t.output+t.cache_write;
+
+  // Sessions by project tooltip
+  const sessByProj={};
+  for(const projs of Object.values(D.sessions))
+    for(const [p,v] of Object.entries(projs)) if(selProjects.has(p)) sessByProj[p]=(sessByProj[p]||0)+v;
+  const sessSorted=Object.entries(sessByProj).sort((a,b)=>b[1]-a[1]);
+  const tipSess=sessSorted.map(([p,v])=>`<div class="tip-row"><span class="tip-label">${escHtml(p.length>22?p.slice(0,20)+'…':p)}</span><span class="tip-val">${v}</span></div>`).join('');
+
+  // Token breakdown tooltip
+  const tipTokens=[
+    ['Output',fmtN(t.output)],['Input',fmtN(t.input)],
+    ['Cache write',fmtN(t.cache_write)],['Cache read',fmtN(t.cache_read)],
+  ].map(([l,v])=>`<div class="tip-row"><span class="tip-label">${l}</span><span class="tip-val">${v}</span></div>`).join('');
+
+  // Tool calls by name tooltip
+  const tc={};
+  for(const projs of Object.values(D.tool_names||{}))
+    for(const [p,names] of Object.entries(projs)){
+      if(!selProjects.has(p))continue;
+      for(const [n,c] of Object.entries(names)) tc[n]=(tc[n]||0)+c;
+    }
+  const toolsSorted=Object.entries(tc).sort((a,b)=>b[1]-a[1]);
+  const tipTools=toolsSorted.map(([n,c])=>`<div class="tip-row"><span class="tip-label">${escHtml(n.replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,''))}</span><span class="tip-val">${fmtN(c)}</span></div>`).join('');
+
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Total cost</div><div class="stat-value" style="color:#6ee7b7">${fmtC(t.cost)}</div><div class="stat-sub">${fmtC(t.cost/nd)} / active day</div></div>
+    <div class="stat stat-hover"><div class="stat-label">Sessions</div><div class="stat-value">${fmtN(t.sessions)}</div><div class="stat-sub">peak ${fmtC(peakSess)}</div><div class="stat-tip">${tipSess}</div></div>
+    <div class="stat stat-hover"><div class="stat-label">Token usage</div><div class="stat-value">${fmtN(tokensNonCache)}<span style="color:#4a4a58;font-size:1rem;font-weight:400"> + ${fmtN(t.cache_read)} ↻</span></div><div class="stat-sub">${cacheHit}% cache hit</div><div class="stat-tip">${tipTokens}</div></div>
+    <div class="stat stat-hover"><div class="stat-label">Tool calls</div><div class="stat-value">${fmtN(t.tools)}</div><div class="stat-tip">${tipTools}</div></div>
+    <div class="stat"><div class="stat-label">Limit hits</div><div class="stat-value" style="color:#fbbf24">${t.compacts}</div><div class="stat-sub">${t.days.size} active days</div></div>`;
+}
+
+/* ── Controls ────────────────────────────────────────── */
+function allowedGrans(){
+  if(timeframe==='1d') return ['hour'];
+  if(timeframe==='7d') return ['hour','day'];
+  if(timeframe==='30d') return ['day','week'];
+  return ['day','week','month'];
+}
+
+function buildControls(){
+  const metrics=[['cost','Cost'],['sessions','Sessions'],['tools','Tools']];
+  const grans=[['hour','H'],['day','D'],['week','W'],['month','M']];
+  const stacks=[['project','Project'],['model','Model']];
+  const ag=allowedGrans();
+
+  document.getElementById('metric-tabs').innerHTML=metrics.map(([k,l])=>{
+    const dis=(stackBy==='model'&&(k==='sessions'||k==='tools'))||(gran==='hour'&&k==='sessions');
+    return `<button class="tab${metric===k?' active':''}" onclick="setMetric('${k}')"${dis?' disabled':''}>${l}</button>`;
+  }).join('');
+
+  document.getElementById('tf-tabs').innerHTML=TF_OPTIONS.map(([k,l])=>
+    `<button class="tab${timeframe===k?' active':''}" onclick="setTimeframe('${k}')">${l}</button>`
+  ).join('');
+
+  document.getElementById('gran-tabs').innerHTML=grans.map(([k,l])=>{
+    const dis=!ag.includes(k);
+    return `<button class="tab${gran===k?' active':''}" onclick="setGran('${k}')"${dis?' disabled':''}>${l}</button>`;
+  }).join('');
+
+  document.getElementById('stack-tabs').innerHTML=stacks.map(([k,l])=>
+    `<button class="tab${stackBy===k?' active':''}" onclick="setStack('${k}')">${l}</button>`
+  ).join('');
+}
+
+/* ── Filter dropdown ─────────────────────────────────── */
+function toggleFilter(){
+  const p=document.getElementById('filter-panel');
+  const t=document.getElementById('filter-trigger');
+  const open=p.classList.toggle('open');
+  t.classList.toggle('open',open);
+}
+
+function buildFilterDropdown(){
+  const el=document.getElementById('filter-list');
+  // compute total cost per project from D_raw
+  const pc={};
+  for(const projs of Object.values(D_raw.costs))
+    for(const [p,mods] of Object.entries(projs))
+      for(const v of Object.values(mods)) pc[p]=(pc[p]||0)+v.cost;
+
+  el.innerHTML=allProjectsFull.map((p,i)=>{
+    const on=selProjects.has(p);
+    const col=projColor[p]||'#555';
+    const name=escHtml(p.length>30?p.slice(0,28)+'…':p);
+    return `<div class="filter-item${on?' on':''}" onclick="event.stopPropagation();selectOnly(allProjectsFull[${i}])">
+      <div class="filter-check" onclick="event.stopPropagation();toggleProj(allProjectsFull[${i}])"><div class="filter-check-box">${on?'✓':''}</div></div>
+      <span class="proj-dot" style="background:${col}"></span>
+      <span class="filter-name" title="${escHtml(p)}">${name}</span>
+      <span class="filter-cost">${fmtC(pc[p]||0)}</span>
+    </div>`;
+  }).join('');
+
+  const n=selProjects.size,total=allProjectsFull.length;
+  document.getElementById('filter-label').textContent=n>=total?'All projects':`${n} of ${total}`;
+}
+
+function toggleProj(p){
+  if(selProjects.has(p)){if(selProjects.size===1)return;selProjects.delete(p)}
+  else selProjects.add(p);
+  saveFilter(); buildFilterDropdown(); render();
+}
+function selectOnly(p){
+  selProjects=new Set([p]);
+  saveFilter(); buildFilterDropdown(); render();
+  document.getElementById('filter-panel').classList.remove('open');
+  document.getElementById('filter-trigger').classList.remove('open');
+}
+function selAll(){selProjects=new Set(allProjectsFull);saveFilter();buildFilterDropdown();render()}
+function selTop(){selProjects=new Set(allProjectsFull.slice(0,5));saveFilter();buildFilterDropdown();render()}
+
+// Close dropdown on outside click
+document.addEventListener('click',e=>{
+  const dd=document.getElementById('filter-dd');
+  if(dd&&!dd.contains(e.target)){
+    document.getElementById('filter-panel').classList.remove('open');
+    document.getElementById('filter-trigger').classList.remove('open');
+  }
+});
+
+/* ── Main chart ──────────────────────────────────────── */
+let mainChart;let _chartLabels=[];
+function buildMainChart(labels,datasets,compactsAgg){
+  if(mainChart)mainChart.destroy();
+  if(stackBy==='model'||stackBy==='tool'){
+    _chartLabels=datasets.map(d=>d.label);
+    document.getElementById('model-legend').innerHTML=datasets.map((d,di)=>`
+      <div class="mleg${hiddenSeries.has(d.label)?' off':''}" onclick="toggleSeries(_chartLabels[${di}])">
+        <span class="mleg-dot" style="background:${d.backgroundColor||'#555'}"></span>${escHtml(d.label)}
+      </div>`).join('');
+  }else document.getElementById('model-legend').innerHTML='';
+
+  const visDs=datasets.filter(d=>!hiddenSeries.has(d.label));
+  const compactData=labels.map(l=>compactsAgg[l]||0);
+
+  mainChart=new Chart(document.getElementById('mainChart'),{
+    type:'bar',data:{labels,datasets:visDs},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          filter:item=>item.parsed.y>0,
+          itemSort:(a,b)=>b.parsed.y-a.parsed.y,
+          callbacks:{
+            title:items=>{if(!items.length)return'';const l=items[0].label;if(l.includes('|')){const [dy,h]=l.split('|');const d=new Date(dy+'T12:00:00');return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+h+':00'}return l},
+            label:ctx=>` ${ctx.dataset.label}: ${fmtV(ctx.parsed.y)}`,
+            afterBody:items=>{
+              if(!items.length)return[];
+              const total=items.reduce((s,i)=>s+i.parsed.y,0);
+              const idx=items[0].dataIndex;
+              const lines=[];
+              if(total>0)lines.push(`  Total: ${fmtV(total)}`);
+              const ch=compactData[idx];
+              if(ch>0)lines.push(`  ${ch} limit hit${ch>1?'s':''}`);
+              return lines;
+            }
+          },
+          backgroundColor:'#1a1a24',titleColor:'#8080a0',bodyColor:'#dcdce4',bodyFont:{family:'JetBrains Mono',size:11},
+          borderColor:'#2a2a38',borderWidth:1,padding:10,cornerRadius:6
+        }
+      },
+      scales:{
+        x:{stacked:true,ticks:{color:'#3a3a48',maxRotation:0,font:{family:'Outfit',size:10},maxTicksLimit:gran==='day'?15:undefined,autoSkip:true,
+          callback:function(v){const l=this.getLabelForValue(v);if(!l)return l;if(gran==='hour'){const [dy,h]=l.split('|');if(h==='00'||h==='12'){const d=new Date(dy+'T12:00:00');return h==='00'?d.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'12:00'}return ''}if(gran==='month')return l;const d=new Date(l+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+        },grid:{display:false},border:{display:false}},
+        y:{stacked:true,ticks:{color:'#3a3a48',font:{family:'JetBrains Mono',size:10},callback:v=>metric==='cost'?'$'+v.toFixed(0):fmtN(v)},grid:{color:'#14141c'},border:{display:false}}
+      }
+    }
+  });
+}
+
+/* ── Calendar (always uses D_raw — full data) ────────── */
+function buildCal(){
+  const dayCost={};
+  for(const [day,projs] of Object.entries(D_raw.costs)){
+    let c=0;
+    for(const [p,mods] of Object.entries(projs)){
+      if(!selProjects.has(p))continue;
+      for(const v of Object.values(mods))c+=v.cost;
+    }
+    if(c>0)dayCost[day]=c;
+  }
+  const dayCompact={};
+  for(const [day,projs] of Object.entries(D_raw.compacts))
+    for(const [p,v] of Object.entries(projs))
+      if(selProjects.has(p))dayCompact[day]=(dayCompact[day]||0)+v;
+
+  const days=Object.keys(dayCost).sort();
+  if(!days.length){document.getElementById('cal-area').innerHTML='<span style="color:#3a3a48;font-size:.72rem">No data</span>';return}
+
+  const maxCost=Math.max(...Object.values(dayCost));
+  function shade(cost){if(!cost)return CAL_SHADES[0];return CAL_SHADES[Math.min(Math.ceil(cost/maxCost*4),4)]}
+
+  // Always show 6 months back from today
+  const today=new Date(); today.setHours(12,0,0,0);
+  const sixMonthsAgo=new Date(today); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6);
+
+  // Start from Monday of first week
+  const sd=sixMonthsAgo.getDay();
+  const start=new Date(sixMonthsAgo); start.setDate(start.getDate()-(sd===0?6:sd-1));
+  // End on Sunday of current week
+  const ed=today.getDay();
+  const end=new Date(today); if(ed!==0)end.setDate(end.getDate()+(7-ed));
+
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let weeks=[],week=[];
+  const cur=new Date(start); cur.setHours(12,0,0,0);
+  while(cur<=end){
+    const ds=toLD(cur);
+    week.push({day:ds,cost:dayCost[ds]||0,compact:dayCompact[ds]||0,mo:cur.getMonth()});
+    if(cur.getDay()===0){weeks.push(week);week=[]}
+    cur.setDate(cur.getDate()+1);
+  }
+  if(week.length)weeks.push(week);
+
+  // Month labels
+  let mhtml='<div style="display:flex;margin-bottom:3px;margin-left:18px">';
+  let prevMo=-1,span=0;
+  for(const wk of weeks){
+    const mo=wk[0]?.mo;
+    if(mo!==prevMo){if(prevMo>=0)mhtml+=`<div style="width:${span*17}px;font-size:.58rem;color:#3a3a48">${MONTHS[prevMo]}</div>`;prevMo=mo;span=1}else span++;
+  }
+  mhtml+=`<div style="font-size:.58rem;color:#3a3a48">${MONTHS[prevMo]||''}</div></div>`;
+
+  let whtml='<div style="display:flex;gap:3px">';
+  whtml+='<div style="display:flex;flex-direction:column;gap:3px">';
+  ['','T','','T','','S',''].forEach(l=>whtml+=`<div style="width:10px;height:14px;font-size:.55rem;color:#2a2a35;line-height:14px;text-align:right">${l}</div>`);
+  whtml+='</div>';
+
+  for(let wi=0;wi<weeks.length;wi++){
+    const wk=weeks[wi];
+    whtml+='<div style="display:flex;flex-direction:column;gap:3px">';
+    if(wi===0){
+      const fd=new Date(wk[0].day+'T12:00:00');
+      const pad=fd.getDay()===0?6:fd.getDay()-1;
+      for(let i=0;i<pad;i++)whtml+=`<div style="width:14px;height:14px"></div>`;
+    }
+    for(const {day,cost,compact} of wk){
+      const c=shade(cost);
+      const dt=new Date(day+'T12:00:00');
+      const label=dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      let tip=label;
+      if(cost>0) tip+=`  $${cost.toFixed(0)}`;
+      if(compact) tip+=`  ${compact} limit hit${compact>1?'s':''}`;
+      const ring=compact?'outline:1.5px solid #fbbf24;outline-offset:1px;':'';
+      whtml+=`<div class="cal-cell" style="background:${c};${ring}" onmouseenter="calTip(event,'${tip}')" onmouseleave="calTipHide()"></div>`;
+    }
+    whtml+='</div>';
+  }
+  whtml+='</div>';
+
+  const legend=`<div class="cal-legend" style="padding:4px 0">Less ${CAL_SHADES.map(c=>`<div style="width:10px;height:10px;border-radius:2px;background:${c}"></div>`).join('')} More <span style="margin:0 4px 0 10px;display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1.5px solid #fbbf24;border-radius:3px;vertical-align:middle"><span style="width:10px;height:10px;border-radius:2px;background:${CAL_SHADES[2]};display:block"></span></span>limit hit</div>`;
+  document.getElementById('cal-area').innerHTML=mhtml+whtml+legend;
+}
+
+/* ── Breakdown bars ──────────────────────────────────── */
+function buildBreakdown(){
+  const el=document.getElementById('proj-breakdown');
+  const projHits={};
+  for(const projs of Object.values(D.compacts))for(const [p,v] of Object.entries(projs))projHits[p]=(projHits[p]||0)+v;
+  const maxHits=Math.max(...Object.values(projHits),1);
+  // Always show cost for project breakdown (stable reference)
+  const pv={};
+  for(const p of allProjects){
+    if(!selProjects.has(p))continue;let v=0;
+    for(const projs of Object.values(D.costs)){const mods=projs[p];if(mods)for(const m of Object.values(mods))v+=m.cost}
+    if(v>0)pv[p]=v;
+  }
+  const maxV=Math.max(...Object.values(pv),1);
+  const sorted=allProjects.filter(p=>pv[p]>0).map(p=>[p,pv[p]]);
+  const shown=sorted.slice(0,6),rest=sorted.slice(6);
+  const restTotal=rest.reduce((s,[,v])=>s+v,0);
+
+  function hitStyle(p){const h=projHits[p]||0;const alpha=h>0?(0.25+0.75*Math.min(h/maxHits,1)).toFixed(2):'0';return `border-left:2px solid rgba(251,191,36,${alpha});padding-left:6px;`}
+
+  el.innerHTML=shown.map(([p,v])=>{
+    const h=projHits[p]||0;
+    const hitLabel=h>0?`<span style="color:#fbbf24;font-size:.6rem;opacity:${(0.4+0.6*Math.min(h/maxHits,1)).toFixed(2)};margin-left:4px">${h}</span>`:'';
+    return `<div class="bk-item" style="${hitStyle(p)}"><div class="bk-top"><span class="bk-name"><span style="width:6px;height:6px;border-radius:50%;background:${projColor[p]||'#555'};display:inline-block"></span>${escHtml(p.length>24?p.slice(0,22)+'…':p)}${hitLabel}</span><span class="bk-val">${fmtC(v)}</span></div><div class="bk-track"><div class="bk-fill" style="width:${(v/maxV*100).toFixed(1)}%;background:${(projColor[p]||'#555')}80"></div></div></div>`;
+  }).join('')+(rest.length?`<div style="font-size:.65rem;color:#3a3a48;margin-top:8px;padding-left:8px">+${rest.length} more (${fmtC(restTotal)})</div>`:'');
+}
+
+/* ── Token breakdown ──────────────────────────────────── */
+function buildTokenBreakdown(){
+  const el=document.getElementById('token-breakdown');
+  // Aggregate by token type across selected projects
+  const types={input:0,output:0,cache_write:0,cache_read:0};
+  for(const projs of Object.values(D.costs))
+    for(const [p,mods] of Object.entries(projs)){
+      if(!selProjects.has(p))continue;
+      for(const v of Object.values(mods)){types.input+=v.input;types.output+=v.output;types.cache_write+=v.cache_write;types.cache_read+=v.cache_read}
+    }
+  const typeColors={output:'#6ee7b7',cache_write:'#818cf8',input:'#c4956b',cache_read:'#2a4a3a'};
+  const typeLabels={output:'Output',cache_write:'Cache write',input:'Input',cache_read:'Cache read'};
+  const maxT=Math.max(...Object.values(types),1);
+  // Show non-cache-read first, then cache_read
+  const order=['output','cache_write','input','cache_read'];
+  el.innerHTML=order.map(k=>{
+    const v=types[k];if(v===0)return '';
+    return `<div class="bk-item"><div class="bk-top"><span class="bk-name">${typeLabels[k]}</span><span class="bk-val">${fmtN(v)}</span></div><div class="bk-track"><div class="bk-fill" style="width:${(v/maxT*100).toFixed(1)}%;background:${typeColors[k]}"></div></div></div>`;
+  }).join('');
+
+  // Model breakdown below
+  const models={};
+  for(const projs of Object.values(D.costs))
+    for(const [p,mods] of Object.entries(projs)){
+      if(!selProjects.has(p))continue;
+      for(const [m,v] of Object.entries(mods)) models[m]=(models[m]||0)+v.cost;
+    }
+  const mSorted=Object.entries(models).sort((a,b)=>b[1]-a[1]);
+  const maxM=mSorted.length?mSorted[0][1]:1;
+  el.innerHTML+=`<div style="margin-top:16px;font-size:.6rem;color:#3a3a48;text-transform:uppercase;letter-spacing:.1em;font-weight:500;margin-bottom:10px">By model</div>`;
+  el.innerHTML+=mSorted.map(([m,c])=>`<div class="bk-item"><div class="bk-top"><span class="bk-name">${m}</span><span class="bk-val">${fmtC(c)}</span></div><div class="bk-track"><div class="bk-fill" style="width:${(c/maxM*100).toFixed(1)}%;background:${MODEL_COLORS[m]||'#555'}"></div></div></div>`).join('');
+}
+
+/* ── Tool breakdown ──────────────────────────────────── */
+function buildToolBreakdown(){
+  const el=document.getElementById('tool-breakdown');
+  const tc={};
+  for(const projs of Object.values(D.tool_names||{}))
+    for(const [p,names] of Object.entries(projs)){
+      if(!selProjects.has(p))continue;
+      for(const [name,cnt] of Object.entries(names)) tc[name]=(tc[name]||0)+cnt;
+    }
+  const sorted=Object.entries(tc).sort((a,b)=>b[1]-a[1]);
+  if(!sorted.length){el.innerHTML='<span style="color:#3a3a48;font-size:.72rem">No data</span>';return}
+  const maxV=sorted[0][1];
+  const toolColors={'Read':'#6ba3c4','Edit':'#6ee7b7','Write':'#6bc4a3','Bash':'#c4956b','Grep':'#9b6bc4','Glob':'#c46bba','Agent':'#818cf8','Skill':'#c46b8a','WebSearch':'#fbbf24','WebFetch':'#fbbf24'};
+  const shown=sorted.slice(0,10);
+  const rest=sorted.slice(10);
+  const restTotal=rest.reduce((s,[,v])=>s+v,0);
+  el.innerHTML=shown.map(([name,cnt])=>{
+    const col=toolColors[name]||'#4a4a58';
+    const short=name.replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,'');
+    return `<div class="bk-item"><div class="bk-top"><span class="bk-name" style="font-family:'JetBrains Mono',monospace;font-size:.68rem">${escHtml(short)}</span><span class="bk-val">${fmtN(cnt)}</span></div><div class="bk-track"><div class="bk-fill" style="width:${(cnt/maxV*100).toFixed(1)}%;background:${col}80"></div></div></div>`;
+  }).join('')+(rest.length?`<div style="font-size:.65rem;color:#3a3a48;margin-top:8px">+${rest.length} more (${fmtN(restTotal)})</div>`:'');
+}
+
+/* ── Table ────────────────────────────────────────────── */
+function toggleTable(btn){const w=document.getElementById('table-wrap');const open=w.classList.toggle('open');btn.textContent=open?'Hide table':'Show table ›';if(open)buildTable()}
+
+function buildTable(){
+  const ca=aggCosts(),sa=aggSessions(),ta=aggTools(),xa=aggCompacts(),tna=aggToolNames();
+  const periods=new Set([...Object.keys(ca),...Object.keys(sa),...Object.keys(tna)]);const labels=[...periods].sort();
+  let cols,hasOther=false;
+  if(stackBy==='project'){const selArr=allProjects.filter(p=>selProjects.has(p));if(selArr.length>6){cols=selArr.slice(0,6);hasOther=true}else cols=selArr}else if(stackBy==='tool'){cols=getTopToolNames().map(n=>n.replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,''));hasOther=true}else cols=ALL_MODELS;
+
+  function fmtDate(d){if(gran==='month')return d;const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+
+  document.getElementById('thead').innerHTML='<th>Period</th>'+cols.map(c=>`<th class="num">${escHtml(c.length>14?c.slice(0,12)+'…':c)}</th>`).join('')+(hasOther?'<th class="num">Other</th>':'')+'<th class="num">Total</th>';
+  let grand=0;const colTotals=Object.fromEntries(cols.map(c=>[c,0]));let otherGrand=0;
+
+  const rows=[...labels].reverse().map(l=>{
+    let rowTotal=0;const comp=xa[l]||0;
+    const cells=cols.map(c=>{let v=0;if(stackBy==='project')v=metricVal(l,c,ca,sa,ta);else if(stackBy==='tool'){const tn=tna[l];if(tn){const fullNames=getTopToolNames();const short=n=>n.replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,'');const fn=fullNames.find(n=>short(n)===c);if(fn&&tn[fn])v=tn[fn]}}else{if(metric==='cost'||metric==='output'){const cv=ca[l];if(cv)for(const pm of Object.values(cv))if(pm[c])v+=(metric==='cost'?pm[c].cost:pm[c].output)}}colTotals[c]+=v;rowTotal+=v;return `<td class="num">${v>0?fmtV(v):'<span style="color:#1e1e28">—</span>'}</td>`}).join('');
+    let otherV=0;if(hasOther){if(stackBy==='tool'){const topSet=new Set(getTopToolNames());const tn=tna[l];if(tn)for(const [n,c] of Object.entries(tn))if(!topSet.has(n))otherV+=c}else{for(const c of allProjects.filter(p=>selProjects.has(p)).slice(6))otherV+=metricVal(l,c,ca,sa,ta)}rowTotal+=otherV;otherGrand+=otherV}
+    grand+=rowTotal;
+    const cm=comp>0?`<span style="color:#fbbf24;font-size:.6rem;margin-left:4px">${comp}</span>`:'';
+    const oc=hasOther?`<td class="num">${otherV>0?fmtV(otherV):'<span style="color:#1e1e28">—</span>'}</td>`:'';
+    const hs=comp>0?' style="border-left:2px solid #fbbf2480;white-space:nowrap"':'style="white-space:nowrap"';
+    return `<tr><td ${hs}>${fmtDate(l)}${cm}</td>${cells}${oc}<td class="${metric==='cost'?'cost-td':'num'}">${fmtV(rowTotal)}</td></tr>`;
+  });
+  const tc=cols.map(c=>`<td class="num">${fmtV(colTotals[c])}</td>`).join('');
+  const ot=hasOther?`<td class="num">${fmtV(otherGrand)}</td>`:'';
+  rows.push(`<tr class="tr-total"><td>Total</td>${tc}${ot}<td class="${metric==='cost'?'cost-td':'num'}">${fmtV(grand)}</td></tr>`);
+  document.getElementById('tbody').innerHTML=rows.join('');
+}
+
+/* ── Render ───────────────────────────────────────────── */
+function render(){
+  if(!D)return;
+  buildStats(); buildControls(); buildCal(); buildBreakdown();
+
+  let labels,datasets,xa;
+
+  if(gran==='hour'){
+    // Hourly view (1d or 7d)
+    const r=getTfRange();
+    const startD=new Date(r.startStr+'T12:00:00');
+    const endD=new Date(r.endStr+'T12:00:00');
+    labels=[];
+    const dayList=[];
+    for(const d=new Date(startD);d<=endD;d.setDate(d.getDate()+1)){
+      const ds=toLD(d);
+      dayList.push(ds);
+      for(let h=0;h<24;h++) labels.push(ds+'|'+String(h).padStart(2,'0'));
+    }
+    xa={};
+    const activeProjs=allProjects.filter(p=>selProjects.has(p));
+    const isTool=metric==='tools';
+    if(stackBy==='model'&&!isTool){
+      datasets=ALL_MODELS.map(m=>({
+        label:m,
+        data:labels.map(lbl=>{const [dy,h]=lbl.split('|');let s=0;const hp=D_raw.costs_hourly?.[dy]?.[h];if(hp)for(const [p,mods] of Object.entries(hp)){if(!selProjects.has(p))continue;if(mods[m])s+=mods[m].cost}return s}),
+        backgroundColor:MODEL_COLORS[m]||'#555',borderRadius:1,borderSkipped:false,stack:'main',
+      }));
+    }else{
+      datasets=activeProjs.map(p=>({
+        label:p,
+        data:labels.map(lbl=>{const [dy,h]=lbl.split('|');
+          if(isTool) return D_raw.tools_hourly?.[dy]?.[h]?.[p]||0;
+          let s=0;const hp=D_raw.costs_hourly?.[dy]?.[h];if(hp&&hp[p])for(const v of Object.values(hp[p]))s+=v.cost;return s;
+        }),
+        backgroundColor:(projColor[p]||'#555')+'cc',borderRadius:1,borderSkipped:false,stack:'main',
+      }));
+    }
+  }else{
+    const ca=aggCosts(),sa=aggSessions(),ta=aggTools();
+    xa=aggCompacts();
+    const allPeriods=new Set([...Object.keys(ca),...Object.keys(sa),...Object.keys(ta)]);
+    labels=[...allPeriods].sort();
+
+    if(stackBy==='project'){
+      datasets=allProjects.filter(p=>selProjects.has(p)).map(p=>({
+        label:p,data:labels.map(l=>metricVal(l,p,ca,sa,ta)),
+        backgroundColor:(projColor[p]||'#555')+'cc',borderRadius:gran==='day'?1:2,borderSkipped:false,stack:'main',
+      }));
+    }else{
+      datasets=ALL_MODELS.map(m=>({
+        label:m,data:labels.map(l=>modelMetricVal(l,m,ca)),
+        backgroundColor:MODEL_COLORS[m]||'#555',borderRadius:gran==='day'?1:2,borderSkipped:false,stack:'main',
+      }));
+    }
+  }
+  buildMainChart(labels,datasets,xa||{});
+  if(document.getElementById('table-wrap').classList.contains('open'))buildTable();
+}
+
+function toggleSeries(k){hiddenSeries.has(k)?hiddenSeries.delete(k):hiddenSeries.add(k);render()}
+function setGran(g){if(!allowedGrans().includes(g))return;gran=g;render()}
+function setStack(s){stackBy=s;hiddenSeries.clear();if(s==='model'&&(metric==='sessions'||metric==='tools'))metric='cost';render()}
+function setMetric(m){metric=m;render()}
+
+/* ── Calendar tooltip ─────────────────────────────────── */
+function calTip(e,text){
+  const t=document.getElementById('cal-tip');
+  t.textContent=text;t.style.display='block';
+  const r=e.target.getBoundingClientRect();
+  t.style.left=(r.left+r.width/2-t.offsetWidth/2)+'px';
+  t.style.top=(r.top-t.offsetHeight-6)+'px';
+}
+function calTipHide(){document.getElementById('cal-tip').style.display='none'}
+
+/* ── Init ─────────────────────────────────────────────── */
+loadData();
+</script>
+</body>
+</html>
