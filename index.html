@@ -4,10 +4,42 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Code Usage</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
+<link rel="preload" href="/vendor/fonts/outfit-latin.woff2" as="font" type="font/woff2">
+<link rel="preload" href="/vendor/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2">
+<script src="/vendor/chart.umd.min.js"></script>
 <style>
+@font-face{
+  font-family:'Outfit';
+  font-style:normal;
+  font-weight:300 600;
+  font-display:block;
+  src:url('/vendor/fonts/outfit-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:'Outfit';
+  font-style:normal;
+  font-weight:300 600;
+  font-display:block;
+  src:url('/vendor/fonts/outfit-latin-ext.woff2') format('woff2');
+  unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face{
+  font-family:'JetBrains Mono';
+  font-style:normal;
+  font-weight:400 600;
+  font-display:block;
+  src:url('/vendor/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:'JetBrains Mono';
+  font-style:normal;
+  font-weight:400 600;
+  font-display:block;
+  src:url('/vendor/fonts/jetbrains-mono-cyrillic.woff2') format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
 :root{--c-bg:#0b0b0f;--c-surface:#16161e;--c-surface-hover:#1c1c28;--c-surface-active:#242432;--c-border:#323244;--c-border-hover:#a0a0ba;--c-muted:#9898b4;--c-dim:#acacc4;--c-mid:#bdbdd2;--c-mid-hover:#c0c0d4;--c-text:#d0d0dc;--c-heading:#eeeeF4;--c-grid:#1a1a28;--c-row-border:#161620;--c-row-hover:#12121c;--c-total-bg:#0e0e16;--c-shadow:rgba(0,0,0,.5);--c-shadow-sm:rgba(0,0,0,.4);--c-check-bg:#6bc4a318;--c-check-border:#6bc4a360;--c-green:#6ee7b7;--c-yellow:#fbbf24;--c-yellow-dim:#fbbf2480}
 [data-theme="light"]{--c-bg:#f0f0f4;--c-surface:#ffffff;--c-surface-hover:#e4e4eb;--c-surface-active:#d4d4de;--c-border:#b8b8c8;--c-border-hover:#3a3a5c;--c-muted:#3c3c58;--c-dim:#2e2e4a;--c-mid:#22223e;--c-mid-hover:#282840;--c-text:#2a2a40;--c-heading:#101024;--c-grid:#d8d8e2;--c-row-border:#dcdce6;--c-row-hover:#eaeaf0;--c-total-bg:#e0e0ea;--c-shadow:rgba(0,0,0,.12);--c-shadow-sm:rgba(0,0,0,.08);--c-check-bg:#6bc4a325;--c-check-border:#6bc4a370;--c-green:#059669;--c-yellow:#b45309;--c-yellow-dim:#b4530980}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -19,7 +51,8 @@ body{font-family:'Outfit',system-ui,sans-serif;background:var(--c-bg);color:var(
 *::-webkit-scrollbar-thumb:hover{background:var(--c-border-hover)}
 
 .page{max-width:1080px;margin:0 auto;padding:48px 32px 64px}
-#loading{display:flex;align-items:center;justify-content:center;height:100vh;color:var(--c-muted);font-size:.85rem}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--c-bg);color:var(--c-muted);font-size:.85rem;z-index:500;opacity:0;pointer-events:none}
+#loading.show{opacity:1;pointer-events:auto}
 
 /* ── Header ─────────────────────────── */
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:48px}
@@ -82,6 +115,7 @@ body{font-family:'Outfit',system-ui,sans-serif;background:var(--c-bg);color:var(
 /* ── Chart ──────────────────────────── */
 .chart-area{margin-bottom:40px}
 .chart-wrap{position:relative;height:300px}
+.chart-fallback{height:100%;display:flex;align-items:center;justify-content:center;border:1px dashed var(--c-border);border-radius:8px;color:var(--c-border-hover);font-size:.78rem}
 
 /* ── Model legend ──────────────────── */
 .model-legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
@@ -149,7 +183,7 @@ tr:hover td.col-hl{background:var(--c-row-hover)}
 <div id="loading">Loading…</div>
 <div id="cal-tip"></div>
 
-<div class="page" id="content" style="display:none">
+<div class="page" id="content" style="visibility:hidden;opacity:0">
 
 <div class="header">
   <div class="title">Claude Code Usage</div>
@@ -217,7 +251,7 @@ tr:hover td.col-hl{background:var(--c-row-hover)}
   </div>
 </div>
 
-<div class="footer">All data is processed locally from ~/.claude/projects · MIT License · v0.1.3<br>Made by mikeqwe &amp; claude</div>
+<div class="footer">All data is processed locally from ~/.claude/projects · MIT License · v0.1.4<br>Made by mikeqwe &amp; claude</div>
 
 </div>
 
@@ -237,7 +271,6 @@ const PROJ_COLORS = ['#c4956b','#6ba3c4','#9b6bc4','#6bc4a3','#c46b8a','#8ac46b'
 const MODEL_COLORS = {'opus-4-6':'#a78bfa','opus-4-5':'#c4b5fd','sonnet-4-6':'#f59e0b','sonnet-4-5':'#fbbf24','haiku-4-5':'#34d399','haiku-3-5':'#6ee7b7'};
 const ALL_MODELS = ['opus-4-6','opus-4-5','sonnet-4-6','sonnet-4-5','haiku-4-5','haiku-3-5'];
 const TF_OPTIONS = [['1d','1d'],['7d','7d'],['30d','30d'],['90d','90d'],['all','All']];
-const TOOL_COLORS = {'Read':'#6ba3c4','Edit':'#6ee7b7','Write':'#6bc4a3','Bash':'#c4956b','Grep':'#9b6bc4','Glob':'#c46bba','Agent':'#818cf8','Skill':'#c46b8a','WebSearch':'#fbbf24','WebFetch':'#e5a820','Bash':'#c4956b','SendMessage':'#93c5fd'};
 const STORAGE_KEY = 'cc_usage_filter';
 
 /* ── State ──────────────────────────────────────────── */
@@ -249,6 +282,7 @@ let allProjects = [];      // from filtered D — for charts
 let projColor = {};
 let selProjects = new Set();
 let hiddenSeries = new Set();
+const fontsReady = document.fonts?.ready?.catch(()=>{}) || Promise.resolve();
 
 /* ── Helpers ─────────────────────────────────────────── */
 function toLD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -304,21 +338,47 @@ function loadFilter(){
 }
 
 /* ── Data loading ───────────────────────────────────── */
+async function fetchJsonWithRetry(url,{retries=1,timeoutMs=8000}={}){
+  let lastErr;
+  for(let attempt=0;attempt<=retries;attempt++){
+    const ctl=new AbortController();
+    const timer=timeoutMs>0?setTimeout(()=>ctl.abort(),timeoutMs):null;
+    try{
+      const res=await fetch(url,{cache:'no-store',signal:ctl.signal});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }catch(err){
+      lastErr=err;
+      if(attempt<retries) await new Promise(r=>setTimeout(r,250));
+    }finally{
+      if(timer) clearTimeout(timer);
+    }
+  }
+  throw lastErr;
+}
+
 async function loadData(){
-  document.getElementById('loading').style.display='flex';
+  const loadingEl=document.getElementById('loading');
+  const contentEl=document.getElementById('content');
+  let loaderTimer=setTimeout(()=>loadingEl.classList.add('show'),120);
   try{
-    const res=await fetch('/api/data');
-    D_raw=await res.json();
+    D_raw=await fetchJsonWithRetry('/api/data',{retries:1,timeoutMs:120000});
     initProjectsFull();
     const saved=loadFilter();
     selProjects=saved?new Set([...saved].filter(p=>allProjectsFull.includes(p))):new Set(allProjectsFull);
     if(selProjects.size===0) selProjects=new Set(allProjectsFull);
     applyTimeframe(); recomputeProjects();
-    document.getElementById('loading').style.display='none';
-    document.getElementById('content').style.display='';
+    await fontsReady;
     buildDateRange(); buildFilterDropdown(); render();
+    await new Promise(requestAnimationFrame);
+    clearTimeout(loaderTimer);
+    contentEl.style.visibility='visible';
+    contentEl.style.opacity='1';
+    loadingEl.classList.remove('show');
   }catch(e){
-    document.getElementById('loading').textContent='Failed to load data';
+    clearTimeout(loaderTimer);
+    loadingEl.classList.add('show');
+    loadingEl.textContent='Failed to load data';
     console.error(e);
   }
 }
@@ -327,8 +387,7 @@ async function refreshData(){
   const btn=document.getElementById('update-btn');
   btn.disabled=true; btn.textContent='↻ …';
   try{
-    const res=await fetch('/api/refresh');
-    D_raw=await res.json();
+    D_raw=await fetchJsonWithRetry('/api/refresh',{retries:0,timeoutMs:120000});
     initProjectsFull();
     applyTimeframe(); recomputeProjects();
     buildDateRange(); buildFilterDropdown(); render();
@@ -583,6 +642,15 @@ document.addEventListener('click',e=>{
 /* ── Main chart ──────────────────────────────────────── */
 let mainChart;let _chartLabels=[];
 function buildMainChart(labels,datasets,compactsAgg){
+  const wrap=document.querySelector('.chart-wrap');
+  if(typeof Chart==='undefined'){
+    if(mainChart)mainChart.destroy();
+    mainChart=null;
+    wrap.innerHTML='<div class="chart-fallback">Chart unavailable</div>';
+    return;
+  }
+  if(!document.getElementById('mainChart'))
+    wrap.innerHTML='<canvas id="mainChart"></canvas>';
   if(mainChart)mainChart.destroy();
   if(stackBy==='model'||stackBy==='tool'){
     _chartLabels=datasets.map(d=>d.label);
@@ -594,13 +662,15 @@ function buildMainChart(labels,datasets,compactsAgg){
 
   const visDs=datasets.filter(d=>!hiddenSeries.has(d.label));
   const compactData=labels.map(l=>compactsAgg[l]||0);
+  const hasLimitHits=compactData.some(v=>v>0);
 
   const limitHitPlugin={
     id:'limitHitBolt',
-    afterDraw(chart){
+    afterDatasetsDraw(chart){
       const meta=chart.getDatasetMeta(chart.data.datasets.length-1);
       if(!meta||!meta.data)return;
       const ctx=chart.ctx;
+      const minBoltY=chart.chartArea.top+18;
       ctx.save();
       ctx.textAlign='center';
       ctx.textBaseline='bottom';
@@ -615,7 +685,7 @@ function buildMainChart(labels,datasets,compactsAgg){
         }
         ctx.fillStyle=getTC().yellow;
         ctx.font='bold 11px sans-serif';
-        ctx.fillText('\u26A1\uFE0E',bar.x,topY-4);
+        ctx.fillText('\u26A1\uFE0E',bar.x,Math.max(topY-4,minBoltY));
       }
       ctx.restore();
     }
@@ -626,6 +696,7 @@ function buildMainChart(labels,datasets,compactsAgg){
     plugins:[limitHitPlugin],
     options:{
       responsive:true,maintainAspectRatio:false,
+      layout:{padding:{top:hasLimitHits?18:0}},
       interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{display:false},
@@ -644,7 +715,7 @@ function buildMainChart(labels,datasets,compactsAgg){
         x:{stacked:true,ticks:{color:getTC().borderHover,maxRotation:0,font:{family:'Outfit',size:10},maxTicksLimit:gran==='day'?15:undefined,autoSkip:true,
           callback:function(v){const l=this.getLabelForValue(v);if(!l)return l;if(gran==='hour'){const [dy,h]=l.split('|');if(h==='00'||h==='12'){const d=new Date(dy+'T12:00:00');return h==='00'?d.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'12:00'}return ''}if(gran==='month')return l;const d=new Date(l+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
         },grid:{display:false},border:{display:false}},
-        y:{stacked:true,ticks:{color:getTC().borderHover,font:{family:'JetBrains Mono',size:10},callback:v=>metric==='cost'?'$'+v.toFixed(0):fmtN(v)},grid:{color:getTC().grid},border:{display:false}}
+        y:{stacked:true,grace:hasLimitHits?'16%':0,ticks:{color:getTC().borderHover,font:{family:'JetBrains Mono',size:10},callback:v=>metric==='cost'?'$'+v.toFixed(0):fmtN(v)},grid:{color:getTC().grid},border:{display:false}}
       }
     }
   });
@@ -757,62 +828,6 @@ function buildBreakdown(){
     const hitLabel=h>0?`<span style="color:${getTC().yellow};font-size:.6rem;opacity:${(0.4+0.6*Math.min(h/maxHits,1)).toFixed(2)};margin-left:4px">${h}</span>`:'';
     return `<div class="bk-item" style="${hitStyle(p)}"><div class="bk-top"><span class="bk-name"><span style="width:6px;height:6px;border-radius:50%;background:${projColor[p]||'#555'};display:inline-block"></span>${escHtml(p.length>24?p.slice(0,22)+'…':p)}${hitLabel}</span><span class="bk-val">${fmtC(v)}</span></div><div class="bk-track"><div class="bk-fill" style="width:${(v/maxV*100).toFixed(1)}%;background:${(projColor[p]||'#555')}80"></div></div></div>`;
   }).join('')+(rest.length?`<div style="font-size:.65rem;color:${getTC().borderHover};margin-top:8px;padding-left:8px">+${rest.length} more (${fmtC(restTotal)})</div>`:'');
-}
-
-/* ── Token breakdown ──────────────────────────────────── */
-function buildTokenBreakdown(){
-  const el=document.getElementById('token-breakdown');
-  // Aggregate by token type across selected projects
-  const types={input:0,output:0,cache_write:0,cache_read:0};
-  for(const projs of Object.values(D.costs))
-    for(const [p,mods] of Object.entries(projs)){
-      if(!selProjects.has(p))continue;
-      for(const v of Object.values(mods)){types.input+=v.input;types.output+=v.output;types.cache_write+=v.cache_write;types.cache_read+=v.cache_read}
-    }
-  const typeColors={output:getTC().green,cache_write:'#818cf8',input:'#c4956b',cache_read:'#2a4a3a'};
-  const typeLabels={output:'Output',cache_write:'Cache write',input:'Input',cache_read:'Cache read'};
-  const maxT=Math.max(...Object.values(types),1);
-  // Show non-cache-read first, then cache_read
-  const order=['output','cache_write','input','cache_read'];
-  el.innerHTML=order.map(k=>{
-    const v=types[k];if(v===0)return '';
-    return `<div class="bk-item"><div class="bk-top"><span class="bk-name">${typeLabels[k]}</span><span class="bk-val">${fmtN(v)}</span></div><div class="bk-track"><div class="bk-fill" style="width:${(v/maxT*100).toFixed(1)}%;background:${typeColors[k]}"></div></div></div>`;
-  }).join('');
-
-  // Model breakdown below
-  const models={};
-  for(const projs of Object.values(D.costs))
-    for(const [p,mods] of Object.entries(projs)){
-      if(!selProjects.has(p))continue;
-      for(const [m,v] of Object.entries(mods)) models[m]=(models[m]||0)+v.cost;
-    }
-  const mSorted=Object.entries(models).sort((a,b)=>b[1]-a[1]);
-  const maxM=mSorted.length?mSorted[0][1]:1;
-  el.innerHTML+=`<div style="margin-top:16px;font-size:.6rem;color:${getTC().borderHover};text-transform:uppercase;letter-spacing:.1em;font-weight:500;margin-bottom:10px">By model</div>`;
-  el.innerHTML+=mSorted.map(([m,c])=>`<div class="bk-item"><div class="bk-top"><span class="bk-name">${m}</span><span class="bk-val">${fmtC(c)}</span></div><div class="bk-track"><div class="bk-fill" style="width:${(c/maxM*100).toFixed(1)}%;background:${MODEL_COLORS[m]||'#555'}"></div></div></div>`).join('');
-}
-
-/* ── Tool breakdown ──────────────────────────────────── */
-function buildToolBreakdown(){
-  const el=document.getElementById('tool-breakdown');
-  const toolCounts2={};
-  for(const projs of Object.values(D.tool_names||{}))
-    for(const [p,names] of Object.entries(projs)){
-      if(!selProjects.has(p))continue;
-      for(const [name,cnt] of Object.entries(names)) toolCounts2[name]=(toolCounts2[name]||0)+cnt;
-    }
-  const sorted=Object.entries(toolCounts2).sort((a,b)=>b[1]-a[1]);
-  if(!sorted.length){el.innerHTML='<span style="color:'+getTC().borderHover+';font-size:.72rem">No data</span>';return}
-  const maxV=sorted[0][1];
-  const toolColors={'Read':'#6ba3c4','Edit':'#6ee7b7','Write':'#6bc4a3','Bash':'#c4956b','Grep':'#9b6bc4','Glob':'#c46bba','Agent':'#818cf8','Skill':'#c46b8a','WebSearch':'#fbbf24','WebFetch':'#fbbf24'};
-  const shown=sorted.slice(0,10);
-  const rest=sorted.slice(10);
-  const restTotal=rest.reduce((s,[,v])=>s+v,0);
-  el.innerHTML=shown.map(([name,cnt])=>{
-    const col=toolColors[name]||'#4a4a58';
-    const short=name.replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,'');
-    return `<div class="bk-item"><div class="bk-top"><span class="bk-name" style="font-family:'JetBrains Mono',monospace;font-size:.68rem">${escHtml(short)}</span><span class="bk-val">${fmtN(cnt)}</span></div><div class="bk-track"><div class="bk-fill" style="width:${(cnt/maxV*100).toFixed(1)}%;background:${col}80"></div></div></div>`;
-  }).join('')+(rest.length?`<div style="font-size:.65rem;color:${getTC().borderHover};margin-top:8px">+${rest.length} more (${fmtN(restTotal)})</div>`:'');
 }
 
 /* ── Table ────────────────────────────────────────────── */

@@ -28,10 +28,13 @@ docker build -t cc-usage .
 
 docker run -p 8765:8765 \
   -v ~/.claude/projects:/claude-projects:ro \
+  -v cc-usage-data:/app/data \
   cc-usage
 ```
 
 Then open `http://localhost:8765`.
+
+The named volume keeps `data/usage.json` between container recreations, so warm starts stay fast.
 
 ## Features
 
@@ -60,7 +63,7 @@ Reads `~/.claude/projects/*/**.jsonl` and `*/subagents/*.jsonl` session logs. Ex
 - Rate limit events from top-level `error: rate_limit` entries
 - Per-session costs by grouping files by parent session UUID
 
-No external dependencies — pure Python stdlib server + vanilla HTML/JS/CSS with Chart.js from CDN.
+No external dependencies — pure Python stdlib server + vanilla HTML/JS/CSS with a bundled Chart.js asset.
 
 ## Security
 

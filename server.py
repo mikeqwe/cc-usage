@@ -6,11 +6,11 @@ Usage:
   python3 server.py 9000         # custom port
   python3 server.py --no-open    # don't open browser
 """
-import json, os, glob, sys, time, webbrowser
+import json, os, glob, sys, time, webbrowser, tempfile, threading
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse
 
 CLAUDE_DIR = os.environ.get("CLAUDE_PROJECTS_DIR", os.path.expanduser("~/.claude/projects"))
@@ -19,6 +19,9 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 ANON = os.environ.get("CC_USAGE_ANON", "").lower() in ("1", "true", "yes")
 CACHE_FILE = os.path.join(DATA_DIR, "usage.json")
 PORT = 8765
+CACHE_LOCK = threading.Lock()
+CACHE_MISS_LOCK = threading.Lock()
+CACHE_BODY = None
 
 RATES_FILE = os.path.join(BASE_DIR, "rates.json")
 with open(RATES_FILE) as f:
@@ -144,6 +147,74 @@ def parse_iso(s):
         return None
 
 
+def assistant_snapshot_rank(obj):
+    """Rank duplicate assistant snapshots, preferring the most complete one."""
+    msg = obj.get('message', {})
+    usage = msg.get('usage', {})
+    content = msg.get('content', [])
+    stage = 0
+    for item in content:
+        if not isinstance(item, dict):
+            continue
+        t = item.get('type')
+        if t == 'thinking':
+            stage = max(stage, 1)
+        elif t == 'text':
+            stage = max(stage, 2)
+        elif t == 'tool_use':
+            stage = max(stage, 3)
+    return (
+        obj.get('timestamp', ''),
+        usage.get('output_tokens', 0),
+        usage.get('cache_creation_input_tokens', 0),
+        usage.get('cache_read_input_tokens', 0),
+        usage.get('input_tokens', 0),
+        stage,
+    )
+
+
+def read_cache_body():
+    global CACHE_BODY
+    with CACHE_LOCK:
+        if CACHE_BODY is not None:
+            return CACHE_BODY
+        if not os.path.exists(CACHE_FILE):
+            return None
+        with open(CACHE_FILE, 'rb') as f:
+            CACHE_BODY = f.read()
+        return CACHE_BODY
+
+
+def write_cache_body(body):
+    global CACHE_BODY
+    os.makedirs(DATA_DIR, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=DATA_DIR, prefix='usage.', suffix='.json')
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            f.write(body)
+        os.replace(tmp_path, CACHE_FILE)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+    with CACHE_LOCK:
+        CACHE_BODY = body
+
+
+def get_or_build_cache_body():
+    body = read_cache_body()
+    if body is not None:
+        return body
+    with CACHE_MISS_LOCK:
+        body = read_cache_body()
+        if body is not None:
+            return body
+        print("No cache, extracting...")
+        data = extract_data()
+        body = json.dumps(data).encode()
+        write_cache_body(body)
+        return body
+
+
 def extract_data():
     t0 = time.time()
     if not os.path.isdir(CLAUDE_DIR):
@@ -162,6 +233,7 @@ def extract_data():
     for proj_dir in sorted(glob.glob(f"{CLAUDE_DIR}/*/")):
         pname = proj_name(os.path.basename(proj_dir.rstrip('/')))
         proj_path = Path(proj_dir)
+        assistant_latest = {}
 
         for fp in glob.glob(f"{proj_dir}*.jsonl"):
             first_ts = None
@@ -195,7 +267,7 @@ def extract_data():
             except Exception:
                 continue
 
-            for raw_line in file_lines:
+            for line_no, raw_line in enumerate(file_lines, 1):
                 raw_line = raw_line.strip()
                 if not raw_line:
                     continue
@@ -223,36 +295,53 @@ def extract_data():
                     usage = msg.get('usage', {})
                     if not usage:
                         continue
-                    it = usage.get('input_tokens', 0)
-                    ot = usage.get('output_tokens', 0)
-                    cr = usage.get('cache_read_input_tokens', 0)
-                    cw = usage.get('cache_creation_input_tokens', 0)
-                    rates = get_rates(model_raw)
-                    cost = 0.0
-                    if rates:
-                        cost = (it * rates['input'] + ot * rates['output'] +
-                                cr * rates['cache_read'] + cw * rates['cache_write']) / 1e6
-                    model = norm_model(model_raw)
-                    v = costs[day][pname][model]
-                    v[0] += cost; v[1] += ot; v[2] += it; v[3] += cr; v[4] += cw
+                    session_key = obj.get('sessionId') or parent_id
+                    msg_id = msg.get('id') or obj.get('requestId') or f"{fp}:{line_no}"
+                    # Assistant messages are often logged as cumulative snapshots
+                    # (thinking -> text -> tool_use -> final). Keep only the latest.
+                    key = (session_key, msg_id)
+                    rank = assistant_snapshot_rank(obj)
+                    prev = assistant_latest.get(key)
+                    if prev is None or rank > prev[0]:
+                        assistant_latest[key] = (rank, obj, parent_id)
 
-                    hour = ts[11:13] if len(ts) > 12 else '00'
-                    vh = costs_hourly[day][hour][pname][model]
-                    vh[0] += cost; vh[1] += ot; vh[2] += it; vh[3] += cr; vh[4] += cw
+        for (session_key, _), (_, obj, parent_id) in assistant_latest.items():
+            ts = obj.get('timestamp', '')
+            if not ts:
+                continue
+            day = ts[:10]
+            msg = obj.get('message', {})
+            model_raw = msg.get('model', '')
+            usage = msg.get('usage', {})
+            it = usage.get('input_tokens', 0)
+            ot = usage.get('output_tokens', 0)
+            cr = usage.get('cache_read_input_tokens', 0)
+            cw = usage.get('cache_creation_input_tokens', 0)
+            rates = get_rates(model_raw)
+            cost = 0.0
+            if rates:
+                cost = (it * rates['input'] + ot * rates['output'] +
+                        cr * rates['cache_read'] + cw * rates['cache_write']) / 1e6
+            model = norm_model(model_raw)
+            v = costs[day][pname][model]
+            v[0] += cost; v[1] += ot; v[2] += it; v[3] += cr; v[4] += cw
 
-                    # Track per-session cost
-                    if cost > 0:
-                        skey = (parent_id, pname)
-                        per_session_cost[skey] += cost
-                        if skey not in per_session_first_day or day < per_session_first_day[skey]:
-                            per_session_first_day[skey] = day
+            hour = ts[11:13] if len(ts) > 12 else '00'
+            vh = costs_hourly[day][hour][pname][model]
+            vh[0] += cost; vh[1] += ot; vh[2] += it; vh[3] += cr; vh[4] += cw
 
-                    for item in msg.get('content', []):
-                        if isinstance(item, dict) and item.get('type') == 'tool_use':
-                            tools[day][pname] += 1
-                            tools_hourly[day][hour][pname] += 1
-                            tname = item.get('name', 'unknown')
-                            tool_names[day][pname][tname] += 1
+            if cost > 0:
+                skey = (session_key or parent_id, pname)
+                per_session_cost[skey] += cost
+                if skey not in per_session_first_day or day < per_session_first_day[skey]:
+                    per_session_first_day[skey] = day
+
+            for item in msg.get('content', []):
+                if isinstance(item, dict) and item.get('type') == 'tool_use':
+                    tools[day][pname] += 1
+                    tools_hourly[day][hour][pname] += 1
+                    tname = item.get('name', 'unknown')
+                    tool_names[day][pname][tname] += 1
 
     # Dedup rate limit events by parent session (30-min window)
     rate_events.sort()
@@ -326,16 +415,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path == '/api/data':
-            if os.path.exists(CACHE_FILE):
-                with open(CACHE_FILE, 'rb') as f:
-                    body = f.read()
-            else:
-                print("No cache, extracting...")
-                data = extract_data()
-                os.makedirs(DATA_DIR, exist_ok=True)
-                body = json.dumps(data).encode()
-                with open(CACHE_FILE, 'wb') as f:
-                    f.write(body)
+            body = get_or_build_cache_body()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
@@ -345,10 +425,8 @@ class Handler(SimpleHTTPRequestHandler):
         elif path == '/api/refresh':
             print("Refreshing data...")
             data = extract_data()
-            os.makedirs(DATA_DIR, exist_ok=True)
             body = json.dumps(data).encode()
-            with open(CACHE_FILE, 'wb') as f:
-                f.write(body)
+            write_cache_body(body)
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
@@ -374,7 +452,7 @@ if __name__ == '__main__':
     os.chdir(BASE_DIR)
 
     url = f"http://localhost:{port}"
-    server = HTTPServer(('', port), Handler)
+    server = ThreadingHTTPServer(('', port), Handler)
     print(f"Dashboard → {url}")
 
     if not no_open:
