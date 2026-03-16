@@ -4,7 +4,7 @@ Local usage dashboard for [Claude Code](https://docs.anthropic.com/en/docs/claud
 
 ![Dashboard](https://img.shields.io/badge/python-3.10+-blue) ![No dependencies](https://img.shields.io/badge/dependencies-none-green) ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 
-![cc-usage dashboard](screenshots/cc-usage-demo.gif)
+![cc-usage dashboard](screenshots/cc-usage-demo.png)
 
 ## Quick start
 
@@ -44,6 +44,7 @@ Then open `http://localhost:8765`.
 - **Activity heatmap** — 6-month calendar with limit hit indicators
 - **Timeframe navigation** — 1d, 7d (with hourly granularity), 30d, 90d, All with ← → navigation
 - **Stack by project / model** — toggle between project and model breakdown on the chart
+- **Dark / light theme** — toggle with automatic persistence to localStorage
 - **Project filter** — multi-select dropdown, persisted to localStorage
 - **Subagent support** — parses nested subagent session logs
 - **Data caching** — extracted data cached in `data/usage.json` for instant page loads
