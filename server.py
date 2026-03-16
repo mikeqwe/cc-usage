@@ -86,6 +86,24 @@ def _home_prefix():
 _HOME_PFX = _home_prefix()
 
 
+def _cwd_from_jsonl(proj_dir):
+    """Extract cwd from first JSONL entry that has it."""
+    for fp in glob.glob(f"{proj_dir}/*.jsonl")[:3]:
+        try:
+            with open(fp, errors='replace') as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line.strip())
+                        cwd = obj.get('cwd', '')
+                        if cwd and cwd != '/':
+                            return os.path.basename(cwd)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+    return None
+
+
 def proj_name(d):
     if d in _NAME_CACHE:
         return _NAME_CACHE[d]
@@ -95,11 +113,17 @@ def proj_name(d):
     if decoded:
         name = decoded
     else:
-        # Fallback: strip home prefix
-        n = d.strip('-')
-        if n.startswith(_HOME_PFX):
-            n = n[len(_HOME_PFX):]
-        name = n
+        # Try extracting project name from cwd field in JSONL logs
+        proj_dir = os.path.join(CLAUDE_DIR, d)
+        cwd_name = _cwd_from_jsonl(proj_dir) if os.path.isdir(proj_dir) else None
+        if cwd_name:
+            name = cwd_name
+        else:
+            # Final fallback: strip home prefix
+            n = d.strip('-')
+            if n.startswith(_HOME_PFX):
+                n = n[len(_HOME_PFX):]
+            name = n
 
     name = name[:50]
     if ANON:

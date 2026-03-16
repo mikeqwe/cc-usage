@@ -28,7 +28,6 @@ docker build -t cc-usage .
 
 docker run -p 8765:8765 \
   -v ~/.claude/projects:/claude-projects:ro \
-  -e CC_USAGE_HOME=$HOME \
   cc-usage
 ```
 
