@@ -209,7 +209,7 @@ tr:hover td{background:#10101a}
   </div>
 </div>
 
-<div class="footer">All data is processed locally from ~/.claude/projects · MIT License · v0.1.1<br>Made by mikeqwe &amp; claude in a couple of hours</div>
+<div class="footer">All data is processed locally from ~/.claude/projects · MIT License · v0.1.2<br>Made by mikeqwe &amp; claude</div>
 
 </div>
 
@@ -254,12 +254,12 @@ function getTfRange(){
 
 function applyTimeframe(){
   if(!D_raw) return;
-  const all={costs:D_raw.costs,sessions:D_raw.sessions,tools:D_raw.tools,tool_names:D_raw.tool_names||{},compacts:D_raw.compacts,peak_session:D_raw.peak_session||{}};
+  const all={costs:D_raw.costs,sessions:D_raw.sessions,tools:D_raw.tools,tool_names:D_raw.tool_names||{},compacts:D_raw.compacts,compact_times:D_raw.compact_times||[],peak_session:D_raw.peak_session||{}};
   if(timeframe==='all'){D=all;return;}
   const r=getTfRange();
   const f=d=>d>=r.startStr&&d<=r.endStr;
   const flt=obj=>Object.fromEntries(Object.entries(obj).filter(([d])=>f(d)));
-  D={costs:flt(all.costs),sessions:flt(all.sessions),tools:flt(all.tools),tool_names:flt(all.tool_names),compacts:flt(all.compacts),peak_session:flt(all.peak_session)};
+  D={costs:flt(all.costs),sessions:flt(all.sessions),tools:flt(all.tools),tool_names:flt(all.tool_names),compacts:flt(all.compacts),compact_times:all.compact_times.filter(e=>f(e.ts.slice(0,10))),peak_session:flt(all.peak_session)};
 }
 
 function initProjectsFull(){
@@ -457,12 +457,20 @@ function buildStats(){
   const toolsSorted=Object.entries(tc).sort((a,b)=>b[1]-a[1]);
   const tipTools=toolsSorted.map(([n,c])=>`<div class="tip-row"><span class="tip-label">${escHtml(n.replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,''))}</span><span class="tip-val">${fmtN(c)}</span></div>`).join('');
 
+  // Limit hits tooltip — exact timestamps, newest first
+  const limitEvents=(D.compact_times||[]).filter(e=>selProjects.has(e.project));
+  const tipLimits=limitEvents.length?limitEvents.map(e=>{
+    const d=new Date(e.ts.replace('Z','+00:00'));
+    const ds=d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+    return `<div class="tip-row"><span class="tip-label">${ds}</span><span class="tip-val" style="color:#6b6b7b">${escHtml(e.project)}</span></div>`;
+  }).join(''):'';
+
   document.getElementById('stats').innerHTML=`
     <div class="stat"><div class="stat-label">Total cost</div><div class="stat-value" style="color:#6ee7b7">${fmtC(t.cost)}</div><div class="stat-sub">${fmtC(t.cost/nd)} / active day</div></div>
     <div class="stat stat-hover"><div class="stat-label">Sessions</div><div class="stat-value">${fmtN(t.sessions)}</div><div class="stat-sub">peak ${fmtC(peakSess)}</div><div class="stat-tip">${tipSess}</div></div>
     <div class="stat stat-hover"><div class="stat-label">Token usage</div><div class="stat-value">${fmtN(tokensNonCache)}<span style="color:#4a4a58;font-size:1rem;font-weight:400"> + ${fmtN(t.cache_read)} ↻</span></div><div class="stat-sub">${cacheHit}% cache hit</div><div class="stat-tip">${tipTokens}</div></div>
-    <div class="stat stat-hover"><div class="stat-label">Tool calls</div><div class="stat-value">${fmtN(t.tools)}</div><div class="stat-tip">${tipTools}</div></div>
-    <div class="stat"><div class="stat-label">Limit hits</div><div class="stat-value" style="color:#fbbf24">${t.compacts}</div><div class="stat-sub">${t.days.size} active days</div></div>`;
+    <div class="stat stat-hover"><div class="stat-label">Tool calls</div><div class="stat-value">${fmtN(t.tools)}</div><div class="stat-sub">${toolsSorted.length?escHtml(toolsSorted[0][0].replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,''))+' '+fmtN(toolsSorted[0][1]):''}</div><div class="stat-tip">${tipTools}</div></div>
+    <div class="stat${tipLimits?' stat-hover':''}"><div class="stat-label">Limit hits</div><div class="stat-value" style="color:#fbbf24">${t.compacts}</div><div class="stat-sub">${t.days.size} active days</div>${tipLimits?`<div class="stat-tip">${tipLimits}</div>`:''}</div>`;
 }
 
 /* ── Controls ────────────────────────────────────────── */
@@ -568,8 +576,35 @@ function buildMainChart(labels,datasets,compactsAgg){
   const visDs=datasets.filter(d=>!hiddenSeries.has(d.label));
   const compactData=labels.map(l=>compactsAgg[l]||0);
 
+  const limitHitPlugin={
+    id:'limitHitBolt',
+    afterDraw(chart){
+      const meta=chart.getDatasetMeta(chart.data.datasets.length-1);
+      if(!meta||!meta.data)return;
+      const ctx=chart.ctx;
+      ctx.save();
+      ctx.font='10px sans-serif';
+      ctx.textAlign='center';
+      ctx.textBaseline='bottom';
+      for(let i=0;i<meta.data.length;i++){
+        if(!compactData[i])continue;
+        const bar=meta.data[i];
+        // find top of stacked bar
+        let topY=bar.y;
+        for(const ds of chart.data.datasets){
+          const m2=chart.getDatasetMeta(chart.data.datasets.indexOf(ds));
+          if(m2&&m2.data[i]&&m2.data[i].y<topY)topY=m2.data[i].y;
+        }
+        ctx.fillStyle='#c4956b';
+        ctx.fillText('⚡',bar.x,topY-4);
+      }
+      ctx.restore();
+    }
+  };
+
   mainChart=new Chart(document.getElementById('mainChart'),{
     type:'bar',data:{labels,datasets:visDs},
+    plugins:[limitHitPlugin],
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
@@ -588,7 +623,7 @@ function buildMainChart(labels,datasets,compactsAgg){
               const lines=[];
               if(total>0)lines.push(`  Total: ${fmtV(total)}`);
               const ch=compactData[idx];
-              if(ch>0)lines.push(`  ${ch} limit hit${ch>1?'s':''}`);
+              if(ch>0)lines.push(`  ⚡ ${ch} limit hit${ch>1?'s':''}`);
               return lines;
             }
           },
@@ -632,12 +667,10 @@ function buildCal(){
   const today=new Date(); today.setHours(12,0,0,0);
   const sixMonthsAgo=new Date(today); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth()-6);
 
-  // Start from Monday of first week
-  const sd=sixMonthsAgo.getDay();
-  const start=new Date(sixMonthsAgo); start.setDate(start.getDate()-(sd===0?6:sd-1));
-  // End on Sunday of current week
-  const ed=today.getDay();
-  const end=new Date(today); if(ed!==0)end.setDate(end.getDate()+(7-ed));
+  // Start from actual date (don't pad beginning with empty cells, like GitLab)
+  const start=new Date(sixMonthsAgo);
+  // End on today (don't render future days, like GitLab)
+  const end=new Date(today);
 
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let weeks=[],week=[];

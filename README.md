@@ -1,6 +1,6 @@
 # cc-usage
 
-Local usage dashboard for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — the AI coding assistant CLI by Anthropic. Tracks API cost, token consumption, sessions, tool calls, and rate limit hits by parsing JSONL session logs. Helps you understand and optimize your Claude Code spending.
+Local usage dashboard for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — the AI coding assistant CLI by Anthropic. Parses JSONL session logs stored in `~/.claude/projects` and visualizes API cost, token consumption, sessions, tool calls, and rate limit hits.
 
 ![Dashboard](https://img.shields.io/badge/python-3.10+-blue) ![No dependencies](https://img.shields.io/badge/dependencies-none-green) ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 
@@ -36,19 +36,25 @@ Then open `http://localhost:8765`.
 
 ## Features
 
-- **Cost tracking** — per project, per model, daily/weekly/monthly/hourly
-- **Token usage** — input, output, cache read/write with cache hit rate
-- **Tool calls** — which tools (Read, Bash, Edit, etc.) and how often
-- **Session analysis** — peak session cost, session count by project
-- **Rate limit hits** — detected from `error: rate_limit` in logs
-- **Activity heatmap** — GitHub-style 6-month calendar
-- **Timeframe navigation** — 1d (hourly), 7d, 30d, 90d, All with ← → navigation
-- **Project filter** — dropdown with multi-select, persisted to localStorage
-- **Data caching** — extracted data cached in `data/usage.json`, instant page loads
+- **Cost tracking** — per project and per model, with hourly/daily/weekly/monthly granularity
+- **Token usage** — input, output, cache read/write breakdown with cache hit rate
+- **Tool calls** — per-tool breakdown (Read, Bash, Edit, Grep, Agent, etc.) with top tool highlighted
+- **Session analysis** — peak session cost markers on the chart, session count by project
+- **Rate limit hits** — detected and deduplicated from `error: rate_limit` entries in logs
+- **Activity heatmap** — 6-month calendar with limit hit indicators
+- **Timeframe navigation** — 1d, 7d (with hourly granularity), 30d, 90d, All with ← → navigation
+- **Stack by project / model** — toggle between project and model breakdown on the chart
+- **Project filter** — multi-select dropdown, persisted to localStorage
+- **Subagent support** — parses nested subagent session logs
+- **Data caching** — extracted data cached in `data/usage.json` for instant page loads
+
+## Supported models
+
+Cost estimates use per-token rates for: Opus 4.6, Opus 4.5, Sonnet 4.6, Sonnet 4.5, Haiku 4.5, Haiku 3.5, and legacy Claude 3 models. Rates are stored in `rates.json` — update the file if Anthropic changes pricing.
 
 ## How it works
 
-Reads `~/.claude/projects/*/**.jsonl` session logs. Extracts:
+Reads `~/.claude/projects/*/**.jsonl` and `*/subagents/*.jsonl` session logs. Extracts:
 - Token usage and costs from `assistant` messages with `usage` field
 - Tool calls from `tool_use` content blocks
 - Rate limit events from top-level `error: rate_limit` entries
@@ -68,6 +74,6 @@ This dashboard is designed for **local use only**. The server binds to all inter
 | `CC_USAGE_HOME` | `~` | Host home directory (for Docker path stripping) |
 | `CC_USAGE_ANON` | `false` | Anonymize project names (for screenshots/demos) |
 
-## Disclaimer
+## Background
 
-This project was built in a couple of hours and tested on macOS only. It may not work correctly on other platforms. Issues and PRs are welcome.
+This project started as a side effect of exploring what Claude Code stores in its local log files and what useful data can be extracted from them. Turned out to be handy for estimating what the usage would cost at API rates (vs. a Pro/Max subscription) and for tracking rate limit hits to optimize work patterns. Issues and PRs are welcome.

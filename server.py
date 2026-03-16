@@ -20,18 +20,9 @@ ANON = os.environ.get("CC_USAGE_ANON", "").lower() in ("1", "true", "yes")
 CACHE_FILE = os.path.join(DATA_DIR, "usage.json")
 PORT = 8765
 
-RATES = {
-    "claude-opus-4-6":   {"input":5,    "output":25,   "cache_write":6.25,  "cache_read":0.50},
-    "claude-opus-4-5":   {"input":5,    "output":25,   "cache_write":6.25,  "cache_read":0.50},
-    "claude-opus-4-":    {"input":15,   "output":75,   "cache_write":18.75, "cache_read":1.50},
-    "claude-sonnet-4-6": {"input":3,    "output":15,   "cache_write":3.75,  "cache_read":0.30},
-    "claude-sonnet-4-5": {"input":3,    "output":15,   "cache_write":3.75,  "cache_read":0.30},
-    "claude-sonnet-4-":  {"input":3,    "output":15,   "cache_write":3.75,  "cache_read":0.30},
-    "claude-haiku-4-5":  {"input":1,    "output":5,    "cache_write":1.25,  "cache_read":0.10},
-    "claude-haiku-3-5":  {"input":0.80, "output":4,    "cache_write":1.00,  "cache_read":0.08},
-    "claude-3-opus":     {"input":15,   "output":75,   "cache_write":18.75, "cache_read":1.50},
-    "claude-3-haiku":    {"input":0.25, "output":1.25, "cache_write":0.30,  "cache_read":0.03},
-}
+RATES_FILE = os.path.join(BASE_DIR, "rates.json")
+with open(RATES_FILE) as f:
+    RATES = json.load(f)
 
 
 def get_rates(model_id):
@@ -243,6 +234,7 @@ def extract_data():
     rate_events.sort()
     seen = {}
     compacts = defaultdict(lambda: defaultdict(int))
+    compact_times = []  # [(timestamp, project), ...]
     for ts, pid, proj in rate_events:
         if pid in seen:
             last = parse_iso(seen[pid])
@@ -251,6 +243,7 @@ def extract_data():
                 continue
         seen[pid] = ts
         compacts[ts[:10]][proj] += 1
+        compact_times.append((ts, proj))
 
     # Aggregate peak session cost per day per project
     peak_session = defaultdict(lambda: defaultdict(float))
@@ -259,7 +252,7 @@ def extract_data():
         if d:
             peak_session[d][proj] = max(peak_session[d][proj], cost)
 
-    result = {'costs': {}, 'costs_hourly': {}, 'sessions': {}, 'tools': {}, 'tools_hourly': {}, 'tool_names': {}, 'compacts': {}, 'peak_session': {}}
+    result = {'costs': {}, 'costs_hourly': {}, 'sessions': {}, 'tools': {}, 'tools_hourly': {}, 'tool_names': {}, 'compacts': {}, 'compact_times': [], 'peak_session': {}}
 
     for day, projs in sorted(costs.items()):
         result['costs'][day] = {}
@@ -293,6 +286,7 @@ def extract_data():
         result['tool_names'][day] = {p: dict(names) for p, names in projs.items()}
     for day, projs in sorted(compacts.items()):
         result['compacts'][day] = dict(projs)
+    result['compact_times'] = [{'ts': ts, 'project': proj} for ts, proj in sorted(compact_times, reverse=True)]
 
     for day, projs in sorted(peak_session.items()):
         result['peak_session'][day] = {p: round(c, 2) for p, c in projs.items()}
