@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-COPY server.py index.html ./
+COPY server.py index.html rates.json ./
 RUN mkdir -p data
 
 EXPOSE 8765
