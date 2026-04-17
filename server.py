@@ -295,17 +295,18 @@ def extract_data():
                     usage = msg.get('usage', {})
                     if not usage:
                         continue
-                    session_key = obj.get('sessionId') or parent_id
                     msg_id = msg.get('id') or obj.get('requestId') or f"{fp}:{line_no}"
-                    # Assistant messages are often logged as cumulative snapshots
-                    # (thinking -> text -> tool_use -> final). Keep only the latest.
-                    key = (session_key, msg_id)
+                    # Dedup by msg_id alone: Anthropic msg.id is globally unique
+                    # per API call, and /branch forks copy the same msg.id across
+                    # session files under a new sessionId. Keying on sessionId too
+                    # would count forked history once per fork.
                     rank = assistant_snapshot_rank(obj)
-                    prev = assistant_latest.get(key)
+                    prev = assistant_latest.get(msg_id)
                     if prev is None or rank > prev[0]:
-                        assistant_latest[key] = (rank, obj, parent_id)
+                        assistant_latest[msg_id] = (rank, obj, parent_id)
 
-        for (session_key, _), (_, obj, parent_id) in assistant_latest.items():
+        for (_, obj, parent_id) in assistant_latest.values():
+            session_key = obj.get('sessionId') or parent_id
             ts = obj.get('timestamp', '')
             if not ts:
                 continue
