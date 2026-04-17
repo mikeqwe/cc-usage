@@ -37,7 +37,7 @@ def get_rates(model_id):
 
 
 def norm_model(m):
-    for k, v in [('opus-4-6','opus-4-6'),('opus-4-5','opus-4-5'),
+    for k, v in [('opus-4-7','opus-4-7'),('opus-4-6','opus-4-6'),('opus-4-5','opus-4-5'),
                  ('sonnet-4-6','sonnet-4-6'),('sonnet-4-5','sonnet-4-5'),
                  ('haiku-4-5','haiku-4-5'),('haiku-3-5','haiku-3-5')]:
         if k in m: return v
