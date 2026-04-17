@@ -318,11 +318,26 @@ def extract_data():
             ot = usage.get('output_tokens', 0)
             cr = usage.get('cache_read_input_tokens', 0)
             cw = usage.get('cache_creation_input_tokens', 0)
+            # Split cache_write into 5m vs 1h TTL (priced 1.25× vs 2× base input).
+            # Iterations are authoritative for multi-turn tool-use; top-level
+            # cache_creation dict only reflects the last iteration.
+            iters = usage.get('iterations') or []
+            if iters:
+                cw_5m = sum((x.get('cache_creation') or {}).get('ephemeral_5m_input_tokens', 0) for x in iters)
+                cw_1h = sum((x.get('cache_creation') or {}).get('ephemeral_1h_input_tokens', 0) for x in iters)
+            else:
+                cc = usage.get('cache_creation') or {}
+                cw_5m = cc.get('ephemeral_5m_input_tokens', 0)
+                cw_1h = cc.get('ephemeral_1h_input_tokens', 0)
+            cw_unclass = max(0, cw - cw_5m - cw_1h)  # attributed to 1h (Claude Code default)
             rates = get_rates(model_raw)
             cost = 0.0
             if rates:
+                rate_1h = rates.get('cache_write_1h', rates['cache_write'])
                 cost = (it * rates['input'] + ot * rates['output'] +
-                        cr * rates['cache_read'] + cw * rates['cache_write']) / 1e6
+                        cr * rates['cache_read'] +
+                        cw_5m * rates['cache_write'] +
+                        (cw_1h + cw_unclass) * rate_1h) / 1e6
             model = norm_model(model_raw)
             v = costs[day][pname][model]
             v[0] += cost; v[1] += ot; v[2] += it; v[3] += cr; v[4] += cw
