@@ -37,7 +37,8 @@ def get_rates(model_id):
 
 
 def norm_model(m):
-    for k, v in [('opus-4-7','opus-4-7'),('opus-4-6','opus-4-6'),('opus-4-5','opus-4-5'),
+    for k, v in [('fable-5','fable-5'),('mythos-5','mythos-5'),('opus-4-8','opus-4-8'),
+                 ('opus-4-7','opus-4-7'),('opus-4-6','opus-4-6'),('opus-4-5','opus-4-5'),
                  ('sonnet-4-6','sonnet-4-6'),('sonnet-4-5','sonnet-4-5'),
                  ('haiku-4-5','haiku-4-5'),('haiku-3-5','haiku-3-5')]:
         if k in m: return v
@@ -428,6 +429,10 @@ def extract_data():
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store, max-age=0')
+        super().end_headers()
+
     def do_GET(self):
         path = urlparse(self.path).path
         if path == '/api/data':

@@ -251,7 +251,7 @@ tr:hover td.col-hl{background:var(--c-row-hover)}
   </div>
 </div>
 
-<div class="footer">All data is processed locally from ~/.claude/projects · MIT License · v0.1.4<br>Made by mikeqwe &amp; claude</div>
+<div class="footer">All data is processed locally from ~/.claude/projects · MIT License · v0.1.6<br>Made by mikeqwe &amp; claude</div>
 
 </div>
 
@@ -268,8 +268,8 @@ function toggleTheme(){_theme=_theme==='dark'?'light':'dark';localStorage.setIte
 
 /* ── Constants ──────────────────────────────────────── */
 const PROJ_COLORS = ['#c4956b','#6ba3c4','#9b6bc4','#6bc4a3','#c46b8a','#8ac46b','#c4a36b','#6b8ac4','#c46bba','#6bc4c4','#a3c46b','#c48a6b','#6bc46b','#ba6bc4'];
-const MODEL_COLORS = {'opus-4-7':'#8b5cf6','opus-4-6':'#a78bfa','opus-4-5':'#c4b5fd','sonnet-4-6':'#f59e0b','sonnet-4-5':'#fbbf24','haiku-4-5':'#34d399','haiku-3-5':'#6ee7b7'};
-const ALL_MODELS = ['opus-4-7','opus-4-6','opus-4-5','sonnet-4-6','sonnet-4-5','haiku-4-5','haiku-3-5'];
+const MODEL_COLORS = {'fable-5':'#ef4444','mythos-5':'#dc2626','opus-4-8':'#7c3aed','opus-4-7':'#8b5cf6','opus-4-6':'#a78bfa','opus-4-5':'#c4b5fd','sonnet-4-6':'#f59e0b','sonnet-4-5':'#fbbf24','haiku-4-5':'#34d399','haiku-3-5':'#6ee7b7'};
+const MODEL_ORDER = ['fable-5','mythos-5','opus-4-8','opus-4-7','opus-4-6','opus-4-5','sonnet-4-6','sonnet-4-5','haiku-4-5','haiku-3-5'];
 const TF_OPTIONS = [['1d','1d'],['7d','7d'],['30d','30d'],['90d','90d'],['all','All']];
 const STORAGE_KEY = 'cc_usage_filter';
 
@@ -467,6 +467,17 @@ function metricVal(period,proj,ca,sa,ta){
 function modelMetricVal(period,model,ca){
   if(metric==='sessions'||metric==='tools')return 0;
   let sum=0;for(const projs of Object.values(ca[period]||{})){const v=projs[model];if(v)sum+=metric==='cost'?v.cost:v.output}return sum;
+}
+function getModels(){
+  const seen=new Set();
+  for(const projs of Object.values(D?.costs||{}))
+    for(const [p,mods] of Object.entries(projs)){
+      if(!selProjects.has(p))continue;
+      for(const [m,v] of Object.entries(mods))
+        if(v.cost||v.output||v.input||v.cache_read||v.cache_write)seen.add(m);
+    }
+  const order=Object.fromEntries(MODEL_ORDER.map((m,i)=>[m,i]));
+  return [...seen].sort((a,b)=>(order[a]??999)-(order[b]??999)||a.localeCompare(b));
 }
 
 /* ── Date range (with nav arrows) ────────────────────── */
@@ -837,7 +848,7 @@ function buildTable(){
   const ca=aggCosts(),sa=aggSessions(),ta=aggTools(),xa=aggCompacts(),tna=aggToolNames();
   const periods=new Set([...Object.keys(ca),...Object.keys(sa),...Object.keys(tna)]);const labels=[...periods].sort();
   let cols,hasOther=false;
-  if(stackBy==='project'){const selArr=allProjects.filter(p=>selProjects.has(p));if(selArr.length>6){cols=selArr.slice(0,6);hasOther=true}else cols=selArr}else if(stackBy==='tool'){cols=getTopToolNames().map(n=>n.replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,''));hasOther=true}else cols=ALL_MODELS;
+  if(stackBy==='project'){const selArr=allProjects.filter(p=>selProjects.has(p));if(selArr.length>6){cols=selArr.slice(0,6);hasOther=true}else cols=selArr}else if(stackBy==='tool'){cols=getTopToolNames().map(n=>n.replace(/^mcp__[^_]+__/,'').replace(/^mcp__/,''));hasOther=true}else cols=getModels();
 
   function fmtDate(d){if(gran==='month')return d;const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
 
@@ -886,7 +897,7 @@ function render(){
     const activeProjs=allProjects.filter(p=>selProjects.has(p));
     const isTool=metric==='tools';
     if(stackBy==='model'&&!isTool){
-      datasets=ALL_MODELS.map(m=>({
+      datasets=getModels().map(m=>({
         label:m,
         data:labels.map(lbl=>{const [dy,h]=lbl.split('|');let s=0;const hp=D_raw.costs_hourly?.[dy]?.[h];if(hp)for(const [p,mods] of Object.entries(hp)){if(!selProjects.has(p))continue;if(mods[m])s+=mods[m].cost}return s}),
         backgroundColor:MODEL_COLORS[m]||'#555',borderRadius:1,borderSkipped:false,stack:'main',
@@ -913,7 +924,7 @@ function render(){
         backgroundColor:(projColor[p]||'#555')+'cc',borderRadius:gran==='day'?1:2,borderSkipped:false,stack:'main',
       }));
     }else{
-      datasets=ALL_MODELS.map(m=>({
+      datasets=getModels().map(m=>({
         label:m,data:labels.map(l=>modelMetricVal(l,m,ca)),
         backgroundColor:MODEL_COLORS[m]||'#555',borderRadius:gran==='day'?1:2,borderSkipped:false,stack:'main',
       }));

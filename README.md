@@ -53,7 +53,7 @@ The named volume keeps `data/usage.json` between container recreations, so warm 
 
 ## Supported models
 
-Cost estimates use per-token rates for: Opus 4.6, Opus 4.5, Sonnet 4.6, Sonnet 4.5, Haiku 4.5, Haiku 3.5, and legacy Claude 3 models. Rates are stored in `rates.json` — update the file if Anthropic changes pricing.
+Cost estimates use per-token rates for: Fable 5, Mythos 5, Opus 4.8, Opus 4.7, Opus 4.6, Opus 4.5, Sonnet 4.6, Sonnet 4.5, Haiku 4.5, Haiku 3.5, and legacy Claude 3 models. Rates are stored in `rates.json` — update the file if Anthropic changes pricing.
 
 ## How it works
 
